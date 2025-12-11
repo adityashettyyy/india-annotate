@@ -1,0 +1,89 @@
+{
+  "images": [
+    {
+      "id": 1,
+      "file_name": "image_001.jpg",
+      "width": 1280,
+      "height": 720
+    },
+    {
+      "id": 2,
+      "file_name": "image_002.jpg",
+      "width": 1280,
+      "height": 720
+    },
+    {
+      "id": 3,
+      "file_name": "image_003.jpg",
+      "width": 1280,
+      "height": 720
+    },
+    {
+      "id": 4,
+      "file_name": "image_004.jpg",
+      "width": 1280,
+      "height": 720
+    },
+    {
+      "id": 5,
+      "file_name": "image_005.jpg",
+      "width": 1280,
+      "height": 720
+    }
+  ],
+
+  "categories": [
+    { "id": 1, "name": "person", "supercategory": "human" },
+    { "id": 2, "name": "car", "supercategory": "vehicle" },
+    { "id": 3, "name": "traffic_light", "supercategory": "object" }
+  ],
+
+  "annotations": [
+    {
+      "id": 101,
+      "image_id": 1,
+      "category_id": 1,
+      "bbox": [300, 200, 80, 180]
+    },
+    {
+      "id": 102,
+      "image_id": 1,
+      "category_id": 2,
+      "bbox": [600, 350, 200, 120]
+    },
+
+    {
+      "id": 103,
+      "image_id": 2,
+      "category_id": 3,
+      "bbox": [700, 100, 40, 60]
+    },
+
+    {
+      "id": 104,
+      "image_id": 3,
+      "category_id": 2,
+      "bbox": [500, 400, 220, 130]
+    },
+    {
+      "id": 105,
+      "image_id": 3,
+      "category_id": 1,
+      "bbox": [200, 250, 70, 160]
+    },
+
+    {
+      "id": 106,
+      "image_id": 4,
+      "category_id": 1,
+      "bbox": [350, 230, 75, 170]
+    },
+
+    {
+      "id": 107,
+      "image_id": 5,
+      "category_id": 3,
+      "bbox": [650, 90, 45, 65]
+    }
+  ]
+}

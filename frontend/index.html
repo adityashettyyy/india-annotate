@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IndiaAnnotate – COCO Dataset Validator</title>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Custom Styles -->
+    <link rel="stylesheet" href="style.css">
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml"
+        href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📊</text></svg>">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+                    },
+                    colors: {
+                        primary: {
+                            50: '#eff6ff',
+                            100: '#dbeafe',
+                            500: '#3b82f6',
+                            600: '#2563eb',
+                            700: '#1d4ed8',
+                        }
+                    },
+                    animation: {
+                        'fade-in': 'fadeIn 0.5s ease-out',
+                        'slide-up': 'slideUp 0.3s ease-out',
+                        'pulse-soft': 'pulseSoft 2s infinite',
+                    },
+                    keyframes: {
+                        fadeIn: {
+                            '0%': { opacity: '0' },
+                            '100%': { opacity: '1' },
+                        },
+                        slideUp: {
+                            '0%': { transform: 'translateY(10px)', opacity: '0' },
+                            '100%': { transform: 'translateY(0)', opacity: '1' },
+                        },
+                        pulseSoft: {
+                            '0%, 100%': { opacity: '1' },
+                            '50%': { opacity: '0.7' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+</head>
+
+<body
+    class="font-sans bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 min-h-screen transition-colors duration-200">
+
+    <!-- Theme Toggle -->
+    <button id="themeToggle"
+        class="fixed top-4 right-4 z-50 p-2 rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors shadow-lg">
+        <svg id="sunIcon" class="w-5 h-5 text-gray-800 dark:hidden" fill="none" stroke="currentColor"
+            viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+        </svg>
+        <svg id="moonIcon" class="w-5 h-5 text-gray-100 hidden dark:block" fill="none" stroke="currentColor"
+            viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+        </svg>
+    </button>
+
+    <!-- Header -->
+    <header
+        class="border-b border-gray-200 dark:border-gray-800 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm sticky top-0 z-40">
+        <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex flex-col sm:flex-row items-center justify-between py-4">
+                <div class="text-center sm:text-left mb-4 sm:mb-0">
+                    <h1 class="text-2xl font-bold text-gray-900 dark:text-white">IndiaAnnotate</h1>
+                    <p class="text-gray-600 dark:text-gray-400 text-sm mt-1">COCO Dataset Validator</p>
+                </div>
+
+                <div class="flex items-center space-x-4">
+                    <div class="hidden sm:flex items-center space-x-2 text-sm">
+                        <div class="h-2 w-2 rounded-full bg-green-500 animate-pulse"></div>
+                        <span class="text-gray-600 dark:text-gray-400">API Status:</span>
+                        <span class="font-medium text-green-600 dark:text-green-400" id="apiStatus">Checking...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main -->
+    <main class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
+        <!-- Hero -->
+        <div class="text-center mb-12 animate-fade-in">
+            <h2 class="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-white mb-4">Validate Your COCO Dataset
+            </h2>
+            <p class="text-lg text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
+                Upload an annotation JSON file or auto-generate COCO annotations.
+            </p>
+        </div>
+
+        <!-- Upload Card -->
+        <div
+            class="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-6 mb-8 animate-slide-up">
+            <div class="max-w-2xl mx-auto">
+
+                <!-- File Upload Text -->
+                <div class="mb-6">
+                    <h3 class="text-xl font-semibold text-gray-900 dark:text-white mb-2">Upload Annotation File</h3>
+                    <p class="text-gray-600 dark:text-gray-400">
+                        Supported: COCO JSON. Example: <code
+                            class="bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded">dataset/annotations/</code>
+                    </p>
+                </div>
+
+                <!-- Upload Box -->
+                <div id="uploadArea"
+                    class="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl p-8 text-center transition-all duration-300 hover:border-primary-500 dark:hover:border-primary-400 hover:bg-primary-50/30 dark:hover:bg-primary-900/20 cursor-pointer group"
+                    onclick="document.getElementById('fileInput').click()">
+
+                    <div class="max-w-xs mx-auto">
+                        <div
+                            class="w-12 h-12 mx-auto mb-4 rounded-full bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center group-hover:bg-primary-200 dark:group-hover:bg-primary-800 transition-colors">
+                            <svg class="w-6 h-6 text-primary-600 dark:text-primary-400" fill="none"
+                                stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                            </svg>
+                        </div>
+                        <h4 class="font-medium text-gray-900 dark:text-white mb-2">Drop your JSON here</h4>
+                        <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">or click to browse</p>
+                        <p class="text-xs text-gray-400 dark:text-gray-500">Max size: 10MB</p>
+                    </div>
+                </div>
+
+                <!-- Selected File -->
+                <div id="selectedFile"
+                    class="hidden mt-4 p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center space-x-3">
+                            <div
+                                class="w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                                <span class="text-blue-600 dark:text-blue-400 font-medium">JSON</span>
+                            </div>
+                            <div>
+                                <p id="fileName" class="font-medium text-gray-900 dark:text-white"></p>
+                                <p id="fileSize" class="text-sm text-gray-500 dark:text-gray-400"></p>
+                            </div>
+                        </div>
+                        <button onclick="clearFile()"
+                            class="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Buttons -->
+                <div class="mt-6 flex flex-col sm:flex-row gap-3 justify-center">
+
+                    <button id="validateBtn" onclick="validateDataset()"
+                        class="px-6 py-3 bg-primary-600 hover:bg-primary-700 dark:bg-primary-500 dark:hover:bg-primary-600 text-white font-medium rounded-lg transition-colors shadow-sm hover:shadow disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2 flex-1 sm:flex-none">
+
+                        <span id="validateText">Validate Dataset</span>
+
+                        <svg id="loadingSpinner" class="hidden w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4">
+                            </circle>
+                            <path class="opacity-75" fill="currentColor"
+                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
+                            </path>
+                        </svg>
+                    </button>
+
+                    <button onclick="loadSample()"
+                        class="px-6 py-3 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-medium rounded-lg transition-colors flex items-center justify-center space-x-2 flex-1 sm:flex-none">
+                        <span>Load Sample</span>
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M13 10V3L4 14h7v7l9-11h-7z" />
+                        </svg>
+                    </button>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- ⭐ AUTO-ANNOTATE SECTION -->
+        <div
+            class="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-6 mb-8 animate-slide-up">
+
+            <h3 class="text-xl font-semibold text-gray-900 dark:text-white mb-2">Auto-Annotate Raw Images</h3>
+            <p class="text-gray-600 dark:text-gray-400 mb-4">
+                Automatically detect objects using YOLO on images inside <code>dataset/images/</code>.
+            </p>
+
+            <div class="flex flex-col sm:flex-row items-center gap-3">
+                <select id="splitSelect"
+                    class="px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 w-full sm:w-auto">
+                    <option value="test">Test</option>
+                    <option value="train">Train</option>
+                    <option value="val">Validation</option>
+                </select>
+
+                <!-- FIXED BUTTON WITH ALL REQUIRED IDs -->
+                <button id="autoAnnotateBtn" onclick="runAutoAnnotate()"
+                    class="px-6 py-3 bg-purple-600 hover:bg-purple-700 dark:bg-purple-500 dark:hover:bg-purple-600 text-white font-medium rounded-lg shadow-sm transition-colors flex items-center justify-center space-x-2 w-full sm:w-auto">
+
+                    <span id="autoAnnText">Auto-Annotate</span>
+
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                </button>
+            </div>
+
+            <!-- REQUIRED SPINNER -->
+            <div id="autoAnnSpinner" class="hidden mt-4 text-center text-purple-500 dark:text-purple-400 font-medium">
+                ⏳ Running YOLO model... please wait.
+            </div>
+
+
+            <!-- Results -->
+            <div id="resultsSection" class="hidden animate-slide-up">
+                <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 gap-4">
+                    <div>
+                        <h3 class="text-2xl font-bold text-gray-900 dark:text-white">Validation Results</h3>
+                        <p class="text-gray-600 dark:text-gray-400 mt-1">Detailed analysis of your dataset</p>
+                    </div>
+
+                    <div class="flex flex-wrap gap-2">
+                        <button onclick="downloadReport()"
+                            class="px-4 py-2 bg-green-500 hover:bg-green-600 text-white font-medium rounded-lg transition-colors flex items-center space-x-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                            <span>Download Report</span>
+                        </button>
+
+                        <button onclick="resetPage()"
+                            class="px-4 py-2 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-medium rounded-lg transition-colors flex items-center space-x-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
+                            <span>Reset</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div id="statusCard"
+                    class="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-6 mb-6">
+                    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                        <div class="flex items-center space-x-3">
+                            <div id="statusIcon"
+                                class="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"></div>
+                            <div>
+                                <h3 id="statusTitle" class="font-semibold text-lg"></h3>
+                                <p id="statusMessage" class="text-gray-600 dark:text-gray-400"></p>
+                            </div>
+                        </div>
+                        <div id="qualityScore" class="hidden">
+                            <div class="text-center bg-gray-50 dark:bg-gray-700/50 rounded-xl p-4 min-w-[120px]">
+                                <div class="text-2xl font-bold text-gray-900 dark:text-white" id="scoreValue"></div>
+                                <div class="text-xs text-gray-500 dark:text-gray-400">Quality Score</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="summaryCards" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-8"></div>
+
+                <div id="distributionSection"
+                    class="hidden bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-6 mb-8">
+                    <div class="flex items-center justify-between mb-6">
+                        <h3 class="text-xl font-semibold text-gray-900 dark:text-white">Label Distribution</h3>
+                        <div class="text-sm text-gray-500 dark:text-gray-400" id="totalAnnotations"></div>
+                    </div>
+                    <div id="distributionGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+                </div>
+
+                <div
+                    class="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+                    <div class="border-b border-gray-200 dark:border-gray-700 px-6 py-4">
+                        <div class="flex items-center justify-between">
+                            <h3 class="text-xl font-semibold text-gray-900 dark:text-white">Validation Result</h3>
+                            <div class="flex items-center space-x-3">
+                                <button onclick="toggleRawJSON()"
+                                    class="text-sm text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 font-medium">
+                                    Toggle Full View
+                                </button>
+                                <button onclick="copyJSON()"
+                                    class="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 font-medium flex items-center space-x-1">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                    </svg>
+                                    <span>Copy</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="jsonViewer"
+                        class="p-6 bg-gray-900 dark:bg-gray-900 rounded-b-2xl overflow-auto max-h-96 transition-all duration-300">
+                        <pre id="jsonOutput" class="text-gray-100 text-sm font-mono"></pre>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Empty State -->
+            <div id="emptyState" class="text-center py-12">
+                <div class="max-w-md mx-auto">
+                    <div
+                        class="w-16 h-16 mx-auto mb-6 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
+                        <svg class="w-8 h-8 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor"
+                            viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                    </div>
+                    <h4 class="text-lg font-medium text-gray-900 dark:text-white mb-2">No Validation Results Yet</h4>
+                    <p class="text-gray-600 dark:text-gray-400">
+                        Upload a COCO JSON file, auto-generate annotations, or load sample data.
+                    </p>
+                </div>
+            </div>
+    </main>
+
+    <footer class="mt-12 border-t border-gray-200 dark:border-gray-800 py-8">
+        <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-gray-600 dark:text-gray-400">
+            IndiaAnnotate Dataset Validator
+        </div>
+    </footer>
+
+    <!-- Hidden Input -->
+    <input type="file" id="fileInput" class="hidden" accept=".json" onchange="handleFileSelect(event)">
+
+    <!-- Script -->
+    <script src="script.js"></script>
+
+</body>
+
+</html>

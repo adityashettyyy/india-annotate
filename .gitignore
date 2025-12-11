@@ -1,0 +1,43 @@
+# ----------------------------
+# Python / Backend
+# ----------------------------
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual Environment
+.venv/
+venv/
+env/
+
+# Model Weights (YOLO etc.)
+backend/models/*.pt
+backend/models/*.pth
+backend/models/*.onnx
+
+# YOLO Cache / Temp
+**/runs/
+**/yolo_cache/
+
+# Dataset (ignore real data)
+dataset/images/
+dataset/annotations/*.json
+!dataset/sample/sample_annotations.json   # keep sample file
+
+# Logs / Temporary
+*.log
+.DS_Store
+Thumbs.db
+
+# ----------------------------
+# Frontend (HTML/CSS/JS only)
+# ----------------------------
+frontend/node_modules/     # only if you used any npm pkg
+frontend/package-lock.json # optional, can ignore or keep
+
+# ----------------------------
+# IDE Settings
+# ----------------------------
+.vscode/
+.idea/
