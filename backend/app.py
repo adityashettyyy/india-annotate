@@ -5,9 +5,10 @@ import io
 import json
 from pathlib import Path
 
-from utils.autocheck import run_autocheck
-from utils.yolo_infer import run_yolo_on_folder
-from utils.coco_builder import build_coco_from_detections
+from services.validation_service import run_autocheck
+from services.yolo_service import run_yolo_on_folder
+from services.coco_service import build_coco_from_detections
+
 
 app = Flask(__name__)
 CORS(app)
