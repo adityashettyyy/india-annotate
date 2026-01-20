@@ -1,28 +1,32 @@
+# backend/services/yolo_service.py
+
 from pathlib import Path
 from PIL import Image
 from ultralytics import YOLO
 
+# ---------------------------------------------------------
+# Load YOLO model ONCE globally (production-safe)
+# ---------------------------------------------------------
 
-# ---------------------------------------------------------
-# Load YOLO model ONCE globally
-# ---------------------------------------------------------
 MODEL_PATH = Path(__file__).resolve().parent.parent / "models" / "idd_yolo.pt"
 
 if not MODEL_PATH.exists():
     raise FileNotFoundError(f"YOLO model missing at: {MODEL_PATH}")
 
-print(f"[YOLO] Loading model from: {MODEL_PATH}")
-_model = YOLO(str(MODEL_PATH))
+print(f"[YOLO] Loading batch model from: {MODEL_PATH}")
+
+_MODEL = YOLO(str(MODEL_PATH))   # <-- clean, safe loader
+
+SUPPORTED_IMG_EXTS = {
+    ".jpg", ".jpeg", ".png", ".bmp", ".webp", ".tiff", ".tif"
+}
 
 
-SUPPORTED_IMG_EXTS = {".jpg", ".jpeg", ".png", ".bmp", ".webp", ".tiff", ".tif"}
-
-
-def run_yolo_on_folder(folder_path: str, conf: float = 0.25):
+def run_yolo_on_folder(folder_path: str, conf: float = 0.25, use_gpu: bool = False):
     """
     Scans all images inside folder recursively and performs YOLO inference.
 
-    RETURNS (Dict):
+    RETURNS:
     {
         "status": "success",
         "detections": [...],
@@ -34,6 +38,15 @@ def run_yolo_on_folder(folder_path: str, conf: float = 0.25):
     if not folder.exists():
         raise FileNotFoundError(f"Images folder not found: {folder}")
 
+    # Move model to GPU if requested
+    model = _MODEL
+    if use_gpu:
+        try:
+            model.to("cuda")
+            print("[YOLO] Running on GPU")
+        except Exception as e:
+            print(f"[YOLO] GPU unavailable, using CPU: {e}")
+
     # Find all images recursively
     image_paths = [
         p for p in folder.rglob("*")
@@ -43,10 +56,9 @@ def run_yolo_on_folder(folder_path: str, conf: float = 0.25):
     if not image_paths:
         raise RuntimeError(f"No images found inside: {folder}")
 
-    model = _model
-    detections = []
+    print(f"[YOLO] Found {len(image_paths)} images")
 
-    # Create COCO-style categories
+    # Build COCO-style categories once
     categories = [
         {
             "id": i + 1,
@@ -56,12 +68,16 @@ def run_yolo_on_folder(folder_path: str, conf: float = 0.25):
         for i, name in model.names.items()
     ]
 
-    # Run inference
-    for img_path in image_paths:
+    detections = []
+
+    # Run inference image-by-image
+    for idx, img_path in enumerate(image_paths, start=1):
+
+        print(f"[YOLO] Processing {idx}/{len(image_paths)} → {img_path.name}")
 
         results = model(str(img_path), conf=conf, verbose=False)[0]
 
-        # Read image for H/W
+        # Read image for width/height
         with Image.open(img_path) as im:
             width, height = im.size
 
@@ -86,7 +102,6 @@ def run_yolo_on_folder(folder_path: str, conf: float = 0.25):
             "objects": objects
         })
 
-    # ⭐ THIS FIXES YOUR ERROR ⭐
     return {
         "status": "success",
         "detections": detections,

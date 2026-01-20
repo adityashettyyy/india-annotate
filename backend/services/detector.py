@@ -1,60 +1,69 @@
-# backend/utils/detector.py
+# backend/services/detector.py
 
-import torch
 from pathlib import Path
+from ultralytics import YOLO
 
-# ------------------------
-# Load YOLO model only once
-# ------------------------
+# ------------------------------------------------------------------
+# Load YOLO model ONCE globally (production-safe)
+# ------------------------------------------------------------------
 
 MODEL_PATH = Path(__file__).resolve().parent.parent / "models" / "idd_yolo.pt"
-MODEL = None
+
+if not MODEL_PATH.exists():
+    raise FileNotFoundError(f"YOLO model missing at: {MODEL_PATH}")
+
+print(f"[YOLO] Loading single-image model from: {MODEL_PATH}")
+
+_MODEL = YOLO(str(MODEL_PATH))   # <-- REPLACES torch.hub.load
+_MODEL.conf = 0.25               # default confidence
 
 
-def load_model():
-    """Load YOLO model only once & reuse."""
-    global MODEL
-
-    if MODEL is None:
-        if not MODEL_PATH.exists():
-            raise FileNotFoundError(f"YOLO model not found at: {MODEL_PATH}")
-
-        # Load with Ultralytics YOLO
-        print(f"[INFO] Loading YOLO model: {MODEL_PATH}")
-        MODEL = torch.hub.load("ultralytics/yolov5", "custom", path=str(MODEL_PATH))
-        MODEL.conf = 0.25  # Default confidence threshold
-
-    return MODEL
-
-
-def detect_image(image_path, conf=0.25):
+def detect_image(image_path: str, conf: float = 0.25):
     """
-    Run YOLO inference on an image.
+    Run YOLO inference on a single image.
 
-    Returns list of dictionaries:
-    [
-        {"bbox": [x,y,w,h], "confidence": 0.82, "class_id": 2, "class_name": "car"},
-        ...
-    ]
+    Returns:
+    {
+      "status": "success",
+      "image_path": "...",
+      "detections": [
+         {
+           "category_id": 3,
+           "category_name": "car",
+           "bbox": [x, y, w, h],
+           "score": 0.82
+         }
+      ]
+    }
     """
-    model = load_model()
+
+    path = Path(image_path)
+    if not path.exists():
+        raise FileNotFoundError(f"Image not found: {image_path}")
+
+    model = _MODEL
     model.conf = conf
 
-    results = model(image_path)
+    results = model(image_path, verbose=False)[0]
 
     detections = []
 
-    for *xyxy, conf_score, cls_id in results.xyxy[0]:
-        x1, y1, x2, y2 = [float(i) for i in xyxy]
+    for box in results.boxes:
+        cls = int(box.cls)
+        x1, y1, x2, y2 = box.xyxy[0].tolist()
 
         w = x2 - x1
         h = y2 - y1
 
         detections.append({
-            "bbox": [x1, y1, w, h],
-            "confidence": float(conf_score),
-            "class_id": int(cls_id),
-            "class_name": model.names[int(cls_id)]
+            "category_id": cls + 1,                 # COCO-style indexing
+            "category_name": model.names[cls],
+            "bbox": [float(x1), float(y1), float(w), float(h)],
+            "score": float(box.conf)
         })
 
-    return detections
+    return {
+        "status": "success",
+        "image_path": image_path,
+        "detections": detections
+    }
