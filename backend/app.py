@@ -1,104 +1,164 @@
+# backend/app.py
+
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import io
 import json
+import logging
+from logging.handlers import RotatingFileHandler
 
-from config import IMAGES_ROOT, ANNOTATIONS_ROOT
+from config import (
+    IMAGES_ROOT,
+    ANNOTATIONS_ROOT,
+    MAX_CONTENT_LENGTH,
+    ALLOWED_SPLITS,
+    DEBUG
+)
+
 from services.validation_service import run_autocheck
 from services.yolo_service import run_yolo_on_folder
 from services.coco_service import build_coco_from_detections
 
+# --------------------------------------------------
+# App setup
+# --------------------------------------------------
+
 app = Flask(__name__)
 CORS(app)
 
-# Security: limit upload size (50MB)
-app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024  
+app.config["MAX_CONTENT_LENGTH"] = MAX_CONTENT_LENGTH
 
-# Allowed dataset splits
-ALLOWED_SPLITS = {"train", "val", "test"}
+# --------------------------------------------------
+# Logging (REQUIRED for production)
+# --------------------------------------------------
 
-def api_error(msg, code=400):
-    return jsonify({"status": "error", "message": msg}), code
+logger = logging.getLogger("india_annotate")
+logger.setLevel(logging.INFO)
+
+handler = RotatingFileHandler(
+    "backend.log",
+    maxBytes=5_000_000,
+    backupCount=3
+)
+formatter = logging.Formatter(
+    "%(asctime)s | %(levelname)s | %(message)s"
+)
+handler.setFormatter(formatter)
+logger.addHandler(handler)
+
+logger.info("IndiaAnnotate backend started")
+
+# --------------------------------------------------
+# Response helpers
+# --------------------------------------------------
+
+def ok(data=None, message="ok", code=200):
+    payload = {"status": "success", "message": message}
+    if data is not None:
+        payload.update(data)
+    return jsonify(payload), code
 
 
-@app.route("/")
+def err(message="error", code=400):
+    return jsonify({"status": "error", "message": message}), code
+
+# --------------------------------------------------
+# Routes
+# --------------------------------------------------
+
+@app.route("/", methods=["GET"])
 def home():
-    return jsonify({"message": "IndiaAnnotate API is running"}), 200
+    return ok(message="IndiaAnnotate API running")
 
+
+@app.route("/health", methods=["GET"])
+def health():
+    return ok({"uptime": "ok"}, "healthy")
 
 # -----------------------------
 # VALIDATE COCO JSON
 # -----------------------------
+
 @app.route("/validate", methods=["POST"])
 def validate_dataset():
     try:
         if "file" not in request.files:
-            return api_error("No file uploaded.", 400)
+            return err("No file uploaded", 400)
 
         file = request.files["file"]
-
-        if file.filename.strip() == "":
-            return api_error("Empty filename.", 400)
+        if not file.filename.strip():
+            return err("Empty filename", 400)
 
         report = run_autocheck(file)
-        return jsonify(report), 200
 
-    except Exception as e:
-        return api_error(f"Server error: {str(e)}", 500)
+        if report.get("status") != "success":
+            logger.warning("Validation failed")
+            return err(report.get("message", "Validation failed"), 400)
 
+        logger.info("Validation completed")
+        return ok({"report": report}, "Validation completed")
+
+    except Exception:
+        logger.exception("Validate endpoint crashed")
+        return err("Internal server error", 500)
 
 # -----------------------------
 # AUTO-ANNOTATE IMAGES
 # -----------------------------
+
 @app.route("/auto-annotate", methods=["POST"])
 def auto_annotate():
     try:
         data = request.get_json(silent=True) or {}
         split = data.get("split", "test")
 
-        # Security check
         if split not in ALLOWED_SPLITS:
-            return api_error("Invalid split. Use train/val/test.", 400)
+            return err("Invalid split", 400)
 
         images_dir = IMAGES_ROOT / split
-
         if not images_dir.exists():
-            return api_error(f"Images folder not found: {images_dir}", 400)
+            return err(f"Images folder not found: {split}", 400)
 
-        # 1) Run YOLO
+        logger.info(f"Auto-annotation started | split={split}")
+
         yolo_result = run_yolo_on_folder(str(images_dir))
+        if yolo_result.get("status") != "success":
+            return err("YOLO inference failed", 500)
 
-        if yolo_result["status"] != "success":
-            return api_error("YOLO inference failed.", 500)
-
-        detections = yolo_result["detections"]
-        categories = yolo_result["categories"]
-
-        # 2) Build COCO JSON
         coco_json = build_coco_from_detections(
-            detections_per_image=detections,
-            categories=categories,
+            detections_per_image=yolo_result["detections"],
+            categories=yolo_result["categories"],
             images_root=str(IMAGES_ROOT)
         )
 
-        # 3) Save file
         out_path = ANNOTATIONS_ROOT / f"auto_annotations_{split}.json"
         out_path.write_text(json.dumps(coco_json, indent=2), encoding="utf-8")
 
-        # 4) Validate generated file
-        json_file_like = io.StringIO(json.dumps(coco_json))
-        validation_report = run_autocheck(json_file_like)
+        validation_report = run_autocheck(
+            io.StringIO(json.dumps(coco_json))
+        )
 
-        return jsonify({
-            "status": "success",
-            "message": "Auto-annotation completed successfully.",
-            "annotations_file": str(out_path),
-            "validation_report": validation_report
-        }), 200
+        logger.info(f"Auto-annotation completed | split={split}")
 
-    except Exception as e:
-        return api_error(f"Auto-annotation failed: {str(e)}", 500)
+        return ok(
+            {
+                "annotations_file": str(out_path),
+                "validation_report": validation_report
+            },
+            "Auto-annotation completed"
+        )
 
+    except Exception:
+        logger.exception("Auto-annotate crashed")
+        return err("Internal server error", 500)
+
+# --------------------------------------------------
+# Run server
+# --------------------------------------------------
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    app.run(
+        host="0.0.0.0",
+        port=5000,
+        debug=DEBUG
+    )
