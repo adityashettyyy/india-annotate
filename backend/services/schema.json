@@ -10,7 +10,7 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["id", "file_name"],
+        "required": ["id", "file_name", "width", "height"],
         "properties": {
           "id": {
             "type": ["integer", "string"]
