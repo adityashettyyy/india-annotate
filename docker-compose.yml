@@ -1,0 +1,11 @@
+services:
+  backend:
+    build: ./backend
+    container_name: indiaannotate-backend
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./dataset:/app/dataset
+      - ./models:/app/models
+    environment:
+      - FLASK_ENV=production
