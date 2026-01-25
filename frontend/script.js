@@ -137,6 +137,11 @@ async function validateDataset() {
         });
 
         const result = await response.json();
+        if (!response.ok || result.status !== 'success') {
+            showError(result.message || 'Validation failed');
+            return;
+        }
+
         currentResult = result;
         displayResults(result);
 
@@ -159,7 +164,7 @@ async function runAutoAnnotate() {
     const autoSpinner = document.getElementById('autoAnnSpinner');
 
     // Select the correct button from HTML
-    const autoBtn = document.querySelector('button[onclick="runAutoAnnotate()"]');
+    const autoBtn = document.getElementById('autoAnnotateBtn');
 
     if (!splitSelect) {
         showError("Auto-annotate UI not found.");
@@ -187,10 +192,11 @@ async function runAutoAnnotate() {
         }
 
         // If backend also returned validation results
-        if (data.validation) {
-            currentResult = data.validation;
+        if (data.validation_report) {
+            currentResult = data.validation_report;
             displayResults(currentResult);
         }
+
 
         showSuccess(data.message || "Auto-annotation completed!");
 
