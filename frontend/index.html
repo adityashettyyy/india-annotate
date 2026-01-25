@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="scroll-smooth">
 
 <head>
     <meta charset="UTF-8">
@@ -20,6 +20,7 @@
     <!-- Favicon -->
     <link rel="icon" type="image/svg+xml"
         href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📊</text></svg>">
+
     <script>
         tailwind.config = {
             darkMode: 'class',
@@ -60,7 +61,6 @@
             }
         }
     </script>
-
 </head>
 
 <body
@@ -68,7 +68,8 @@
 
     <!-- Theme Toggle -->
     <button id="themeToggle"
-        class="fixed top-4 right-4 z-50 p-2 rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors shadow-lg">
+        class="fixed top-4 right-4 z-50 p-2 rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors shadow-lg"
+        aria-label="Toggle theme">
         <svg id="sunIcon" class="w-5 h-5 text-gray-800 dark:hidden" fill="none" stroke="currentColor"
             viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -87,16 +88,14 @@
         <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex flex-col sm:flex-row items-center justify-between py-4">
                 <div class="text-center sm:text-left mb-4 sm:mb-0">
-                    <h1 class="text-2xl font-bold text-gray-900 dark:text-white">IndiaAnnotate</h1>
+                    <h1 class="text-2xl font-bold">IndiaAnnotate</h1>
                     <p class="text-gray-600 dark:text-gray-400 text-sm mt-1">COCO Dataset Validator</p>
                 </div>
 
-                <div class="flex items-center space-x-4">
-                    <div class="hidden sm:flex items-center space-x-2 text-sm">
-                        <div class="h-2 w-2 rounded-full bg-green-500 animate-pulse"></div>
-                        <span class="text-gray-600 dark:text-gray-400">API Status:</span>
-                        <span class="font-medium text-green-600 dark:text-green-400" id="apiStatus">Checking...</span>
-                    </div>
+                <div class="hidden sm:flex items-center space-x-2 text-sm">
+                    <div class="h-2 w-2 rounded-full bg-green-500 animate-pulse"></div>
+                    <span class="text-gray-600 dark:text-gray-400">API:</span>
+                    <span id="apiStatus" class="font-medium text-gray-600 dark:text-gray-400">Checking…</span>
                 </div>
             </div>
         </div>
@@ -107,8 +106,7 @@
 
         <!-- Hero -->
         <div class="text-center mb-12 animate-fade-in">
-            <h2 class="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-white mb-4">Validate Your COCO Dataset
-            </h2>
+            <h2 class="text-3xl sm:text-4xl font-bold mb-4">Validate Your COCO Dataset</h2>
             <p class="text-lg text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
                 Upload an annotation JSON file or auto-generate COCO annotations.
             </p>
@@ -344,16 +342,17 @@
                     </p>
                 </div>
             </div>
+
+            <input type="file" id="fileInput" class="hidden" accept=".json" onchange="handleFileSelect(event)">
     </main>
 
     <footer class="mt-12 border-t border-gray-200 dark:border-gray-800 py-8">
         <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-gray-600 dark:text-gray-400">
-            IndiaAnnotate Dataset Validator
+            IndiaAnnotate • v1.0 • YOLO-powered
         </div>
     </footer>
 
-    <!-- Hidden Input -->
-    <input type="file" id="fileInput" class="hidden" accept=".json" onchange="handleFileSelect(event)">
+
 
     <!-- Script -->
     <script src="script.js"></script>
