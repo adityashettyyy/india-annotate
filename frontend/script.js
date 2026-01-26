@@ -1,5 +1,6 @@
 // IndiaAnnotate - COCO Dataset Validator Frontend Script
-const API_BASE_URL = 'http://127.0.0.1:5000';
+const API_BASE_URL = window.API_BASE_URL || 'http://127.0.0.1:5000';
+
 let selectedFile = null;
 let currentResult = null;
 
@@ -14,7 +15,9 @@ function initializeTheme() {
     const themeToggle = document.getElementById('themeToggle');
     const sunIcon = document.getElementById('sunIcon');
     const moonIcon = document.getElementById('moonIcon');
-    
+
+    if (!themeToggle || !sunIcon || !moonIcon) return;
+
     // Check saved theme or prefer dark mode
     const savedTheme = localStorage.getItem('theme');
     const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
