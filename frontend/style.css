@@ -294,11 +294,11 @@
 }
 
 /* Theme toggle animation */
-.theme-toggle {
+#themeToggle {
     transition: transform 0.3s ease;
 }
 
-.theme-toggle:hover {
+#themeToggle:hover {
     transform: rotate(15deg);
 }
 
