@@ -6,7 +6,7 @@
 
 ## Overview
 
-**IndiaAnnotate** is a web-based platform designed to **validate, analyze, and automatically annotate localized image datasets** using the COCO format.
+**IndiaAnnotate** is a web-based platform designed to **validate, analyze, and automatically annotate localized image datasets** using the COCO format.IndiaAnnotate acts as a bridge between raw data and production-ready machine learning datasets
 
 The project addresses a core problem in machine learning pipelines:
 **inconsistent, incomplete, and low-quality datasets** reduce model performance.
