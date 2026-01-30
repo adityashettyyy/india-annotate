@@ -6,6 +6,7 @@ import io
 import json
 import logging
 from logging.handlers import RotatingFileHandler
+from pathlib import Path
 
 from config import (
     IMAGES_ROOT,
@@ -18,6 +19,7 @@ from config import (
 from services.validation_service import run_autocheck
 from services.yolo_service import run_yolo_on_folder
 from services.coco_service import build_coco_from_detections
+from services.upload_service import handle_dataset_upload
 
 # --------------------------------------------------
 # App setup
@@ -29,7 +31,7 @@ CORS(app)
 app.config["MAX_CONTENT_LENGTH"] = MAX_CONTENT_LENGTH
 
 # --------------------------------------------------
-# Logging (REQUIRED for production)
+# Logging (Production-grade)
 # --------------------------------------------------
 
 logger = logging.getLogger("india_annotate")
@@ -75,9 +77,36 @@ def home():
 def health():
     return ok({"uptime": "ok"}, "healthy")
 
-# -----------------------------
-# VALIDATE COCO JSON
-# -----------------------------
+# --------------------------------------------------
+# DATASET UPLOAD (ADD-1)
+# --------------------------------------------------
+
+@app.route("/upload-dataset", methods=["POST"])
+def upload_dataset():
+    try:
+        if "file" not in request.files:
+            return err("Dataset ZIP required", 400)
+
+        file = request.files["file"]
+        result = handle_dataset_upload(file)
+
+        logger.info(f"Dataset uploaded | session={result['session_id']}")
+
+        return ok(
+            {
+                "session_id": result["session_id"],
+                "dataset_path": result["dataset_path"]
+            },
+            "Dataset uploaded successfully"
+        )
+
+    except Exception:
+        logger.exception("Upload dataset crashed")
+        return err("Internal server error", 500)
+
+# --------------------------------------------------
+# VALIDATE COCO JSON (ADD-2 + ADD-4)
+# --------------------------------------------------
 
 @app.route("/validate", methods=["POST"])
 def validate_dataset():
@@ -96,15 +125,26 @@ def validate_dataset():
             return err(report.get("message", "Validation failed"), 400)
 
         logger.info("Validation completed")
-        return ok({"report": report}, "Validation completed")
+
+        return ok(
+            {
+                "report": report,
+                "human_review": {
+                    "requires_human_review": report.get("requires_human_review"),
+                    "review_status": report.get("review_status"),
+                    "current_stage": report.get("crowd_flow", {}).get("current_stage")
+                }
+            },
+            "Validation completed"
+        )
 
     except Exception:
         logger.exception("Validate endpoint crashed")
         return err("Internal server error", 500)
 
-# -----------------------------
-# AUTO-ANNOTATE IMAGES
-# -----------------------------
+# --------------------------------------------------
+# AUTO-ANNOTATE (ADD-3 + ADD-4)
+# --------------------------------------------------
 
 @app.route("/auto-annotate", methods=["POST"])
 def auto_annotate():
@@ -113,7 +153,7 @@ def auto_annotate():
         split = data.get("split", "test")
 
         if split not in ALLOWED_SPLITS:
-            return err("Invalid split", 400)
+            return err("Invalid split. Use train/val/test.", 400)
 
         images_dir = IMAGES_ROOT / split
         if not images_dir.exists():
@@ -121,19 +161,23 @@ def auto_annotate():
 
         logger.info(f"Auto-annotation started | split={split}")
 
+        # 1️⃣ YOLO inference
         yolo_result = run_yolo_on_folder(str(images_dir))
         if yolo_result.get("status") != "success":
             return err("YOLO inference failed", 500)
 
+        # 2️⃣ Build COCO
         coco_json = build_coco_from_detections(
             detections_per_image=yolo_result["detections"],
             categories=yolo_result["categories"],
             images_root=str(IMAGES_ROOT)
         )
 
+        # 3️⃣ Save annotations
         out_path = ANNOTATIONS_ROOT / f"auto_annotations_{split}.json"
         out_path.write_text(json.dumps(coco_json, indent=2), encoding="utf-8")
 
+        # 4️⃣ Validate generated dataset
         validation_report = run_autocheck(
             io.StringIO(json.dumps(coco_json))
         )
@@ -143,7 +187,15 @@ def auto_annotate():
         return ok(
             {
                 "annotations_file": str(out_path),
-                "validation_report": validation_report
+                "validation_report": validation_report,
+                "india_specific": {
+                    "dataset": "Indian Driving Dataset (IDD)",
+                    "objects": [
+                        "car", "bus", "truck",
+                        "autorickshaw", "motorcycle",
+                        "traffic_sign", "pedestrian"
+                    ]
+                }
             },
             "Auto-annotation completed"
         )
