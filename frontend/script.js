@@ -3,6 +3,7 @@ const API_BASE_URL = window.API_BASE_URL || "http://127.0.0.1:5000";
 
 let selectedFile = null;
 let currentResult = null;
+let currentSessionId = null;
 
 // Initialize theme
 document.addEventListener("DOMContentLoaded", function () {
@@ -181,7 +182,6 @@ function startAnnotationSession() {
   window.location.href = `/annotator.html?session=${sessionId}`;
 }
 
-
 /* ============================================================
    AUTO-ANNOTATE RAW IMAGES
    Calls backend /auto-annotate and directly shows validation.
@@ -204,10 +204,18 @@ async function runAutoAnnotate() {
   showGlobalLoading();
 
   try {
+    if (!currentSessionId) {
+      showError("Upload dataset first.");
+      return;
+    }
+
     const response = await fetch(`${API_BASE_URL}/auto-annotate`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ split }),
+      body: JSON.stringify({
+        session_id: currentSessionId,
+        conf: 0.25,
+      }),
     });
 
     const data = await response.json();
@@ -255,6 +263,9 @@ async function uploadDataset() {
     });
 
     const data = await res.json();
+
+    currentSessionId = data.session_id;
+
     showSuccess(
       "Dataset uploaded. Session: " +
         data.session_id +
@@ -300,31 +311,32 @@ function displayResults(result) {
 }
 
 function handleHumanReview(result) {
-    const banner = document.getElementById('humanReviewBanner');
-    const helpText = document.getElementById('humanReviewHelp');
-    const flow = document.getElementById('crowdFlow');
-    const role = document.getElementById('assignedRole');
-    const next = document.getElementById('nextStage');
+  const banner = document.getElementById("humanReviewBanner");
+  const helpText = document.getElementById("humanReviewHelp");
+  const flow = document.getElementById("crowdFlow");
+  const role = document.getElementById("assignedRole");
+  const next = document.getElementById("nextStage");
 
-    if (!banner || !helpText) return;
+  if (!banner || !helpText) return;
 
-    if (result.requires_human_review) {
-        banner.classList.remove('hidden');
-        helpText.classList.remove('hidden');
+  if (result.requires_human_review) {
+    banner.classList.remove("hidden");
+    helpText.classList.remove("hidden");
 
-        if (flow) flow.classList.remove('hidden');
+    if (flow) flow.classList.remove("hidden");
 
-        if (result.crowd_flow) {
-            if (role) role.textContent = result.crowd_flow.assigned_role || 'Annotator';
-            if (next) next.textContent = result.crowd_flow.next_stage || 'Reviewer Approval';
-        }
-    } else {
-        banner.classList.add('hidden');
-        helpText.classList.add('hidden');
-        if (flow) flow.classList.add('hidden');
+    if (result.crowd_flow) {
+      if (role)
+        role.textContent = result.crowd_flow.assigned_role || "Annotator";
+      if (next)
+        next.textContent = result.crowd_flow.next_stage || "Reviewer Approval";
     }
+  } else {
+    banner.classList.add("hidden");
+    helpText.classList.add("hidden");
+    if (flow) flow.classList.add("hidden");
+  }
 }
-
 
 // Update status card based on result
 function updateStatusCard(result) {
@@ -382,7 +394,6 @@ function updateStatusCard(result) {
     qualityScore.classList.add("hidden");
   }
 }
-
 
 // Update summary statistics cards
 function updateSummaryCards(result) {
