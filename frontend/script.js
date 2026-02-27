@@ -1,57 +1,89 @@
-// IndiaAnnotate - COCO Dataset Validator Frontend Script
+// IndiaAnnotate – Frontend Script v1.1
+// Fixes: session persistence, download annotations, drag-drop ZIP, conf slider, review export
+
 const API_BASE_URL = window.API_BASE_URL || "http://127.0.0.1:5000";
 
-let selectedFile = null;
-let currentResult = null;
-let currentSessionId = null;
+let selectedFile = null;       // COCO JSON for validation
+let selectedZipFile = null;    // Dataset ZIP for upload
+let currentResult = null;      // Current validation result
+let currentSessionId = localStorage.getItem("indiaAnnotate_sessionId") || null;
 
-// Initialize theme
-document.addEventListener("DOMContentLoaded", function () {
+// ============================================================
+// INIT
+// ============================================================
+
+document.addEventListener("DOMContentLoaded", () => {
   initializeTheme();
   checkAPIStatus();
+
+  // Restore session if exists
+  if (currentSessionId) {
+    showSessionPanel(currentSessionId);
+    checkSessionStatus(true); // silent check
+  }
+
+  // Drag-and-drop for JSON upload area
+  const uploadArea = document.getElementById("uploadArea");
+  if (uploadArea) {
+    uploadArea.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      uploadArea.classList.add("border-primary-500", "bg-primary-50/30");
+    });
+    uploadArea.addEventListener("dragleave", () => {
+      uploadArea.classList.remove("border-primary-500", "bg-primary-50/30");
+    });
+    uploadArea.addEventListener("drop", (e) => {
+      e.preventDefault();
+      uploadArea.classList.remove("border-primary-500", "bg-primary-50/30");
+      const file = e.dataTransfer.files[0];
+      if (file) processJsonFile(file);
+    });
+  }
 });
 
-// Theme Management
+// ============================================================
+// THEME
+// ============================================================
+
 function initializeTheme() {
-  const themeToggle = document.getElementById("themeToggle");
-  const sunIcon = document.getElementById("sunIcon");
-  const moonIcon = document.getElementById("moonIcon");
+  const toggle = document.getElementById("themeToggle");
+  const sun = document.getElementById("sunIcon");
+  const moon = document.getElementById("moonIcon");
+  if (!toggle) return;
 
-  if (!themeToggle || !sunIcon || !moonIcon) return;
-
-  // Check saved theme or prefer dark mode
   const savedTheme = localStorage.getItem("theme");
   const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
 
-  if (savedTheme === "dark" || (!savedTheme && prefersDark)) {
-    document.documentElement.classList.add("dark");
-    sunIcon.classList.add("hidden");
-    moonIcon.classList.remove("hidden");
-  } else {
-    document.documentElement.classList.remove("dark");
-    sunIcon.classList.remove("hidden");
-    moonIcon.classList.add("hidden");
-  }
+  const isDark = savedTheme === "dark" || (!savedTheme && prefersDark);
+  applyTheme(isDark, sun, moon);
 
-  // Toggle theme
-  themeToggle.addEventListener("click", () => {
-    if (document.documentElement.classList.contains("dark")) {
-      document.documentElement.classList.remove("dark");
-      localStorage.setItem("theme", "light");
-      sunIcon.classList.remove("hidden");
-      moonIcon.classList.add("hidden");
-    } else {
-      document.documentElement.classList.add("dark");
-      localStorage.setItem("theme", "dark");
-      sunIcon.classList.add("hidden");
-      moonIcon.classList.remove("hidden");
-    }
+  toggle.addEventListener("click", () => {
+    const dark = document.documentElement.classList.contains("dark");
+    applyTheme(!dark, sun, moon);
+    localStorage.setItem("theme", !dark ? "dark" : "light");
   });
 }
 
-// Global Loading Overlay Functions
-function showGlobalLoading() {
+function applyTheme(dark, sun, moon) {
+  if (dark) {
+    document.documentElement.classList.add("dark");
+    sun && sun.classList.add("hidden");
+    moon && moon.classList.remove("hidden");
+  } else {
+    document.documentElement.classList.remove("dark");
+    sun && sun.classList.remove("hidden");
+    moon && moon.classList.add("hidden");
+  }
+}
+
+// ============================================================
+// LOADING OVERLAY
+// ============================================================
+
+function showGlobalLoading(message = "Processing… please wait") {
   const overlay = document.getElementById("globalLoading");
+  const msg = document.getElementById("loadingMessage");
+  if (msg) msg.textContent = message;
   if (overlay) overlay.classList.add("active");
 }
 
@@ -60,201 +92,98 @@ function hideGlobalLoading() {
   if (overlay) overlay.classList.remove("active");
 }
 
-// Check API status on load
+// ============================================================
+// API STATUS
+// ============================================================
+
 async function checkAPIStatus() {
-  const statusElement = document.getElementById("apiStatus");
-
+  const status = document.getElementById("apiStatus");
+  const dot = document.getElementById("apiDot");
   try {
-    const response = await fetch(API_BASE_URL);
-    if (response.ok) {
-      statusElement.textContent = "Connected";
-      statusElement.className =
-        "font-medium text-green-600 dark:text-green-400";
+    const res = await fetch(API_BASE_URL, { signal: AbortSignal.timeout(4000) });
+    if (res.ok) {
+      status.textContent = "Connected";
+      status.className = "font-medium text-green-600 dark:text-green-400";
+      if (dot) { dot.classList.remove("bg-yellow-400"); dot.classList.add("bg-green-500"); }
     } else {
-      statusElement.textContent = "Error";
-      statusElement.className = "font-medium text-red-600 dark:text-red-400";
+      throw new Error("Non-OK status");
     }
-  } catch (error) {
-    statusElement.textContent = "Disconnected";
-    statusElement.className = "font-medium text-red-600 dark:text-red-400";
+  } catch {
+    status.textContent = "Offline";
+    status.className = "font-medium text-red-500 dark:text-red-400";
+    if (dot) { dot.classList.remove("bg-yellow-400"); dot.classList.add("bg-red-500"); }
   }
 }
 
-// Handle file selection
-function handleFileSelect(event) {
+// ============================================================
+// ZIP UPLOAD — DRAG & DROP
+// ============================================================
+
+function handleZipDragOver(event) {
+  event.preventDefault();
+  const area = document.getElementById("zipDropArea");
+  area.classList.add("border-indigo-500", "bg-indigo-50/40");
+}
+
+function handleZipDragLeave(event) {
+  const area = document.getElementById("zipDropArea");
+  area.classList.remove("border-indigo-500", "bg-indigo-50/40");
+}
+
+function handleZipDrop(event) {
+  event.preventDefault();
+  const area = document.getElementById("zipDropArea");
+  area.classList.remove("border-indigo-500", "bg-indigo-50/40");
+  const file = event.dataTransfer.files[0];
+  if (file) processZipFile(file);
+}
+
+function handleZipSelect(event) {
   const file = event.target.files[0];
-  if (!file) return;
+  if (file) processZipFile(file);
+}
 
-  // Check file type
-  if (!file.name.endsWith(".json")) {
-    showError("Please select a JSON file");
+function processZipFile(file) {
+  if (!file.name.toLowerCase().endsWith(".zip")) {
+    showError("Please select a .zip file");
     return;
   }
-
-  // Check file size (max 10MB)
-  if (file.size > 10 * 1024 * 1024) {
-    showError("File size must be less than 10MB");
+  const maxMB = 200;
+  if (file.size > maxMB * 1024 * 1024) {
+    showError(`File too large. Max ${maxMB}MB`);
     return;
   }
+  selectedZipFile = file;
 
-  selectedFile = file;
-  displaySelectedFile();
+  // Show selected zip info
+  const info = document.getElementById("selectedZipInfo");
+  document.getElementById("zipFileName").textContent = file.name;
+  document.getElementById("zipFileSize").textContent = formatBytes(file.size);
+  info.classList.remove("hidden");
 }
 
-// Display selected file information
-function displaySelectedFile() {
-  const container = document.getElementById("selectedFile");
-  const fileName = document.getElementById("fileName");
-  const fileSize = document.getElementById("fileSize");
-  const validateBtn = document.getElementById("validateBtn");
-
-  // Format file size
-  const sizeInMB = (selectedFile.size / (1024 * 1024)).toFixed(2);
-
-  fileName.textContent = selectedFile.name;
-  fileSize.textContent = `${sizeInMB} MB`;
-
-  container.classList.remove("hidden");
-  validateBtn.disabled = false;
+function clearZip() {
+  selectedZipFile = null;
+  document.getElementById("datasetZip").value = "";
+  document.getElementById("selectedZipInfo").classList.add("hidden");
 }
 
-// Clear selected file
-function clearFile() {
-  selectedFile = null;
-  document.getElementById("fileInput").value = "";
-  document.getElementById("selectedFile").classList.add("hidden");
-  document.getElementById("validateBtn").disabled = true;
-}
+// ============================================================
+// UPLOAD DATASET
+// ============================================================
 
-// Validate dataset with the API
-async function validateDataset() {
-  if (!selectedFile) {
-    showError("Please select a file first");
-    return;
-  }
-
-  // Get elements
-  const validateBtn = document.getElementById("validateBtn");
-  const spinner = document.getElementById("loadingSpinner");
-  const validateText = document.getElementById("validateText");
-
-  // Show loading
-  validateBtn.disabled = true;
-  spinner.classList.remove("hidden");
-  validateText.textContent = "Validating...";
-  showGlobalLoading();
-
-  const formData = new FormData();
-  formData.append("file", selectedFile);
-
-  try {
-    const response = await fetch(`${API_BASE_URL}/validate`, {
-      method: "POST",
-      body: formData,
-    });
-
-    const result = await response.json();
-    if (!response.ok || result.status !== "success") {
-      showError(result.message || "Validation failed");
-      return;
-    }
-
-    currentResult = result;
-    displayResults(result);
-    showSuccess("Dataset validated successfully!");
-  } catch (error) {
-    showError(`Network error: ${error.message}`);
-  } finally {
-    // Always reset UI
-    validateBtn.disabled = false;
-    spinner.classList.add("hidden");
-    validateText.textContent = "Validate Dataset";
-    hideGlobalLoading();
-  }
-}
-
-function startAnnotationSession() {
-  if (!currentResult) return;
-
-  // TEMP session id (later backend-generated)
-  const sessionId = Date.now();
-
-  window.location.href = `/annotator.html?session=${sessionId}`;
-}
-
-/* ============================================================
-   AUTO-ANNOTATE RAW IMAGES
-   Calls backend /auto-annotate and directly shows validation.
-============================================================ */
-async function runAutoAnnotate() {
-  const splitSelect = document.getElementById("splitSelect");
-  const autoSpinner = document.getElementById("autoAnnSpinner");
-  const autoBtn = document.getElementById("autoAnnotateBtn");
-
-  if (!splitSelect) {
-    showError("Auto-annotate UI not found.");
-    return;
-  }
-
-  const split = splitSelect.value;
-
-  // UI loading state
-  if (autoBtn) autoBtn.disabled = true;
-  if (autoSpinner) autoSpinner.classList.remove("hidden");
-  showGlobalLoading();
-
-  try {
-    if (!currentSessionId) {
-      showError("Upload dataset first.");
-      return;
-    }
-
-    const response = await fetch(`${API_BASE_URL}/auto-annotate`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        session_id: currentSessionId,
-        conf: 0.25,
-      }),
-    });
-
-    const data = await response.json();
-
-    if (!response.ok || data.status !== "success") {
-      showError(data.message || "Auto-annotation failed");
-      return;
-    }
-
-    // If backend also returned validation results
-    if (data.validation_report) {
-      currentResult = data.validation_report;
-      displayResults(currentResult);
-    }
-
-    showSuccess(
-      data.message || "Auto-annotation completed! Proceed with validation.",
-    );
-  } catch (err) {
-    showError("Auto-annotate error: " + err.message);
-  } finally {
-    if (autoBtn) autoBtn.disabled = false;
-    if (autoSpinner) autoSpinner.classList.add("hidden");
-    hideGlobalLoading();
-  }
-}
-
-// Upload Dataset Function
 async function uploadDataset() {
-  const fileInput = document.getElementById("datasetZip");
-  if (!fileInput.files.length) {
-    showError("Please upload a ZIP file");
+  if (!selectedZipFile) {
+    showError("Please select a ZIP file first");
     return;
   }
 
-  const formData = new FormData();
-  formData.append("file", fileInput.files[0]);
+  const btn = document.getElementById("uploadBtn");
+  btn.disabled = true;
+  showGlobalLoading("Uploading dataset… please wait");
 
-  showGlobalLoading();
+  const formData = new FormData();
+  formData.append("file", selectedZipFile);
 
   try {
     const res = await fetch(`${API_BASE_URL}/upload-dataset`, {
@@ -264,262 +193,469 @@ async function uploadDataset() {
 
     const data = await res.json();
 
+    if (!res.ok || data.status !== "success") {
+      showError(data.message || "Upload failed");
+      return;
+    }
+
     currentSessionId = data.session_id;
+    localStorage.setItem("indiaAnnotate_sessionId", currentSessionId);
 
-    showSuccess(
-      "Dataset uploaded. Session: " +
-        data.session_id +
-        ". Now run auto-annotation.",
-    );
+    showSessionPanel(currentSessionId, data.image_count, data.annotation_count);
+    showSuccess(`✅ Uploaded! Found ${data.image_count} image(s). Session ready.`);
+    clearZip();
 
-    // Auto-select test split for next step
-    const splitSelect = document.getElementById("splitSelect");
-    if (splitSelect) splitSelect.value = "test";
   } catch (err) {
-    showError("Upload failed: " + err.message);
+    showError("Network error: " + err.message);
   } finally {
+    btn.disabled = false;
     hideGlobalLoading();
   }
 }
 
-// Display validation results
+// ============================================================
+// SESSION PANEL
+// ============================================================
+
+function showSessionPanel(sessionId, imageCount, annotationCount) {
+  const panel = document.getElementById("sessionPanel");
+  const display = document.getElementById("sessionIdDisplay");
+  const stats = document.getElementById("sessionStats");
+
+  display.textContent = sessionId;
+  panel.classList.remove("hidden");
+
+  if (imageCount !== undefined) {
+    stats.textContent = `${imageCount} image(s) · ${annotationCount || 0} annotation file(s)`;
+  }
+}
+
+async function checkSessionStatus(silent = false) {
+  if (!currentSessionId) {
+    if (!silent) showError("No active session");
+    return;
+  }
+
+  try {
+    const res = await fetch(`${API_BASE_URL}/session/${currentSessionId}/status`);
+    const data = await res.json();
+
+    if (!res.ok || data.status !== "success") {
+      if (!silent) showError(data.message || "Session not found");
+      return;
+    }
+
+    const stats = document.getElementById("sessionStats");
+    if (stats) {
+      stats.textContent = `${data.image_count} image(s) · annotations: ${data.annotation_files.join(", ") || "none"}`;
+    }
+
+    // Show download button if auto_annotations.json exists
+    const dlBtn = document.getElementById("downloadAnnotationsBtn");
+    if (dlBtn) {
+      if (data.has_auto_annotations) {
+        dlBtn.classList.remove("hidden");
+      } else {
+        dlBtn.classList.add("hidden");
+      }
+    }
+
+    if (!silent) showSuccess("Session status refreshed");
+
+  } catch (err) {
+    if (!silent) showError("Failed to check session: " + err.message);
+  }
+}
+
+function copySessionId() {
+  if (!currentSessionId) return;
+  navigator.clipboard.writeText(currentSessionId)
+    .then(() => showSuccess("Session ID copied!"))
+    .catch(() => showError("Failed to copy"));
+}
+
+function clearSession() {
+  if (!confirm("Clear the current session? This only clears it locally.")) return;
+  currentSessionId = null;
+  localStorage.removeItem("indiaAnnotate_sessionId");
+  document.getElementById("sessionPanel").classList.add("hidden");
+  showSuccess("Session cleared");
+}
+
+// ============================================================
+// DOWNLOAD ANNOTATIONS
+// ============================================================
+
+function downloadAnnotations() {
+  if (!currentSessionId) {
+    showError("No active session");
+    return;
+  }
+  const url = `${API_BASE_URL}/session/${currentSessionId}/download-annotations`;
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `annotations_${currentSessionId.slice(0, 8)}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  showSuccess("Downloading annotations…");
+}
+
+// ============================================================
+// AUTO-ANNOTATE
+// ============================================================
+
+async function runAutoAnnotate() {
+  if (!currentSessionId) {
+    showError("Upload a dataset first (Step 1).");
+    return;
+  }
+
+  const btn = document.getElementById("autoAnnotateBtn");
+  const spinner = document.getElementById("autoAnnSpinner");
+  const text = document.getElementById("autoAnnText");
+  const resultBox = document.getElementById("autoAnnResult");
+
+  const conf = parseInt(document.getElementById("confSlider").value) / 100;
+
+  btn.disabled = true;
+  spinner.classList.remove("hidden");
+  text.textContent = "Running YOLO…";
+  resultBox.classList.add("hidden");
+  showGlobalLoading("Running YOLO model on your images… this may take a minute.");
+
+  try {
+    const res = await fetch(`${API_BASE_URL}/auto-annotate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ session_id: currentSessionId, conf }),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok || data.status !== "success") {
+      showError(data.message || "Auto-annotation failed");
+      return;
+    }
+
+    // Show summary
+    resultBox.innerHTML = `
+      ✅ <strong>Auto-annotation complete!</strong><br>
+      Processed <strong>${data.total_images}</strong> image(s), 
+      found <strong>${data.total_detections}</strong> total detection(s).
+    `;
+    resultBox.classList.remove("hidden");
+
+    // Show download button
+    const dlBtn = document.getElementById("downloadAnnotationsBtn");
+    if (dlBtn) dlBtn.classList.remove("hidden");
+
+    // Display validation results inline
+    if (data.validation_report) {
+      currentResult = data.validation_report;
+      displayResults(currentResult);
+    }
+
+    showSuccess(`Auto-annotation done! ${data.total_detections} objects detected.`);
+
+  } catch (err) {
+    showError("Auto-annotate error: " + err.message);
+  } finally {
+    btn.disabled = false;
+    spinner.classList.add("hidden");
+    text.textContent = "⚡ Auto-Annotate";
+    hideGlobalLoading();
+  }
+}
+
+// ============================================================
+// JSON FILE SELECTION (for validation)
+// ============================================================
+
+function handleFileSelect(event) {
+  const file = event.target.files[0];
+  if (file) processJsonFile(file);
+}
+
+function processJsonFile(file) {
+  if (!file.name.toLowerCase().endsWith(".json")) {
+    showError("Please select a .json file");
+    return;
+  }
+  if (file.size > 10 * 1024 * 1024) {
+    showError("File size must be under 10MB");
+    return;
+  }
+  selectedFile = file;
+  document.getElementById("fileName").textContent = file.name;
+  document.getElementById("fileSize").textContent = formatBytes(file.size);
+  document.getElementById("selectedFile").classList.remove("hidden");
+  document.getElementById("validateBtn").disabled = false;
+}
+
+function clearFile() {
+  selectedFile = null;
+  document.getElementById("fileInput").value = "";
+  document.getElementById("selectedFile").classList.add("hidden");
+  document.getElementById("validateBtn").disabled = true;
+}
+
+// ============================================================
+// VALIDATE DATASET
+// ============================================================
+
+async function validateDataset() {
+  if (!selectedFile) {
+    showError("Please select a COCO JSON file first");
+    return;
+  }
+
+  const btn = document.getElementById("validateBtn");
+  const spinner = document.getElementById("loadingSpinner");
+  const validateText = document.getElementById("validateText");
+
+  btn.disabled = true;
+  spinner.classList.remove("hidden");
+  validateText.textContent = "Validating…";
+  showGlobalLoading("Validating your COCO dataset…");
+
+  const formData = new FormData();
+  formData.append("file", selectedFile);
+
+  try {
+    const res = await fetch(`${API_BASE_URL}/validate`, {
+      method: "POST",
+      body: formData,
+    });
+
+    const result = await res.json();
+
+    if (!res.ok || result.status !== "success") {
+      showError(result.message || "Validation failed");
+      return;
+    }
+
+    // The backend wraps the report in result.report
+    currentResult = result.report || result;
+    displayResults(currentResult);
+    showSuccess("Dataset validated successfully!");
+
+  } catch (err) {
+    showError("Network error: " + err.message);
+  } finally {
+    btn.disabled = false;
+    spinner.classList.add("hidden");
+    validateText.textContent = "Validate Dataset";
+    hideGlobalLoading();
+  }
+}
+
+// ============================================================
+// DISPLAY RESULTS
+// ============================================================
+
 function displayResults(result) {
+  document.getElementById("emptyState").classList.add("hidden");
+  document.getElementById("resultsSection").classList.remove("hidden");
+
+  updateStatusCard(result);
+  updateSummaryCards(result);
+  updateWarnings(result);
+  updateLabelDistribution(result);
+  updateJSONViewer(result);
+  handleHumanReview(result);
+
+  // Update unannotated count badge
   const badge = document.getElementById("unannotatedCount");
   if (badge && result.summary) {
-    badge.textContent = `(${result.summary.images_without_annotations})`;
+    badge.textContent = `(${result.summary.images_without_annotations || 0})`;
   }
 
-  const emptyState = document.getElementById("emptyState");
-  const resultsSection = document.getElementById("resultsSection");
-  emptyState.classList.add("hidden");
-  resultsSection.classList.remove("hidden");
-
-  // Update status card
-  updateStatusCard(result);
-
-  // Update summary cards
-  updateSummaryCards(result);
-
-  // Update label distribution
-  updateLabelDistribution(result);
-
-  // Update JSON viewer
-  updateJSONViewer(result);
-
-  // Handle human review workflow
-  handleHumanReview(result);
+  // Scroll to results
+  document.getElementById("resultsSection").scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
-function handleHumanReview(result) {
-  const banner = document.getElementById("humanReviewBanner");
-  const helpText = document.getElementById("humanReviewHelp");
-  const flow = document.getElementById("crowdFlow");
-  const role = document.getElementById("assignedRole");
-  const next = document.getElementById("nextStage");
-
-  if (!banner || !helpText) return;
-
-  if (result.requires_human_review) {
-    banner.classList.remove("hidden");
-    helpText.classList.remove("hidden");
-
-    if (flow) flow.classList.remove("hidden");
-
-    if (result.crowd_flow) {
-      if (role)
-        role.textContent = result.crowd_flow.assigned_role || "Annotator";
-      if (next)
-        next.textContent = result.crowd_flow.next_stage || "Reviewer Approval";
-    }
-  } else {
-    banner.classList.add("hidden");
-    helpText.classList.add("hidden");
-    if (flow) flow.classList.add("hidden");
-  }
-}
-
-// Update status card based on result
 function updateStatusCard(result) {
-  const statusIcon = document.getElementById("statusIcon");
-  const statusTitle = document.getElementById("statusTitle");
-  const statusMessage = document.getElementById("statusMessage");
+  const icon = document.getElementById("statusIcon");
+  const title = document.getElementById("statusTitle");
+  const message = document.getElementById("statusMessage");
   const qualityScore = document.getElementById("qualityScore");
   const scoreValue = document.getElementById("scoreValue");
 
   if (result.status === "success") {
-    // Success state
-    statusIcon.innerHTML = `
-            <div class="w-10 h-10 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
-                <svg class="w-6 h-6 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-                </svg>
-            </div>
-        `;
-    statusTitle.textContent = "Validation Successful";
-    statusTitle.className =
-      "font-semibold text-lg text-green-700 dark:text-green-400";
-    statusMessage.textContent = "Your COCO dataset is valid and ready for use.";
+    icon.innerHTML = `<div class="w-10 h-10 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center text-xl">✅</div>`;
+    title.textContent = "Validation Successful";
+    title.className = "font-semibold text-lg text-green-700 dark:text-green-400";
 
-    // Show quality score
-    if (result.summary?.estimated_quality_score) {
+    const reviewStatus = result.review_status || "";
+    if (reviewStatus === "approved") {
+      message.textContent = "Dataset is valid and ready for training.";
+    } else {
+      message.textContent = "Dataset is valid. Human review recommended for full approval.";
+    }
+
+    const score = result.summary?.estimated_quality_score ?? null;
+    if (score !== null) {
       qualityScore.classList.remove("hidden");
-      const score = result.summary.estimated_quality_score;
       scoreValue.textContent = score;
-
-      if (score >= 80) {
-        scoreValue.className =
-          "text-2xl font-bold text-green-600 dark:text-green-400";
-      } else if (score >= 60) {
-        scoreValue.className =
-          "text-2xl font-bold text-yellow-600 dark:text-yellow-400";
-      } else {
-        scoreValue.className =
-          "text-2xl font-bold text-red-600 dark:text-red-400";
-      }
+      scoreValue.className = `text-3xl font-bold ${
+        score >= 80 ? "text-green-600 dark:text-green-400" :
+        score >= 60 ? "text-yellow-600 dark:text-yellow-400" :
+        "text-red-500 dark:text-red-400"
+      }`;
+    } else {
+      qualityScore.classList.add("hidden");
     }
   } else {
-    // Error state
-    statusIcon.innerHTML = `
-            <div class="w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
-                <svg class="w-6 h-6 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                </svg>
-            </div>
-        `;
-    statusTitle.textContent = "Validation Failed";
-    statusTitle.className =
-      "font-semibold text-lg text-red-700 dark:text-red-400";
-    statusMessage.textContent =
-      result.message || "There was an error validating your dataset.";
+    icon.innerHTML = `<div class="w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center text-xl">❌</div>`;
+    title.textContent = "Validation Failed";
+    title.className = "font-semibold text-lg text-red-700 dark:text-red-400";
+    message.textContent = result.message || "There was an error validating your dataset.";
     qualityScore.classList.add("hidden");
   }
 }
 
-// Update summary statistics cards
 function updateSummaryCards(result) {
   const container = document.getElementById("summaryCards");
+  if (!result.summary) { container.innerHTML = ""; return; }
 
-  if (!result.summary) {
-    container.innerHTML =
-      '<p class="text-gray-600 dark:text-gray-400">No summary data available.</p>';
-    return;
-  }
+  const s = result.summary;
 
-  const summaryData = [
-    {
-      title: "Images",
-      value: result.summary.num_images || 0,
-      icon: "🖼️",
-      color: "blue",
-      percentage: 100,
-    },
-    {
-      title: "Annotations",
-      value: result.summary.num_annotations || 0,
-      icon: "📝",
-      color: "green",
-      percentage: result.summary.num_images
-        ? Math.min(
-            (result.summary.num_annotations /
-              (result.summary.num_images * 10)) *
-              100,
-            100,
-          )
-        : 0,
-    },
-    {
-      title: "Categories",
-      value: result.summary.num_categories || 0,
-      icon: "🏷️",
-      color: "purple",
-      percentage: Math.min((result.summary.num_categories / 20) * 100, 100),
-    },
-    {
-      title: "Annotated Images",
-      value: result.summary.images_with_annotations || 0,
-      icon: "✅",
-      color: "teal",
-      percentage: result.summary.num_images
-        ? (result.summary.images_with_annotations / result.summary.num_images) *
-          100
-        : 0,
-    },
-    {
-      title: "Unannotated Images",
-      value: result.summary.images_without_annotations || 0,
-      icon: "⭕",
-      color: "orange",
-      percentage: result.summary.num_images
-        ? (result.summary.images_without_annotations /
-            result.summary.num_images) *
-          100
-        : 0,
-    },
-    {
-      title: "Avg. per Image",
-      value: result.summary.num_images
-        ? (result.summary.num_annotations / result.summary.num_images).toFixed(
-            1,
-          )
-        : "0",
-      icon: "📊",
-      color: "indigo",
-      percentage: Math.min(
-        (result.summary.num_annotations / (result.summary.num_images * 5)) *
-          100,
-        100,
-      ),
-    },
+  const cards = [
+    { label: "Images", value: s.num_images || 0, icon: "🖼️", color: "blue" },
+    { label: "Annotations", value: s.num_annotations || 0, icon: "📝", color: "green" },
+    { label: "Categories", value: s.num_categories || 0, icon: "🏷️", color: "purple" },
+    { label: "Annotated", value: s.images_with_annotations || 0, icon: "✅", color: "teal" },
+    { label: "Unannotated", value: s.images_without_annotations || 0, icon: "⭕", color: "orange" },
+    { label: "Avg/Image", value: s.average_annotations_per_image ?? "—", icon: "📊", color: "indigo" },
   ];
 
-  container.innerHTML = summaryData
-    .map(
-      (item) => `
-        <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-5 hover-lift">
-            <div class="flex items-center justify-between">
-                <div>
-                    <p class="text-sm text-gray-500 dark:text-gray-400 font-medium mb-1">${item.title}</p>
-                    <p class="text-2xl font-bold text-gray-900 dark:text-white">${item.value}</p>
-                </div>
-                <div class="text-2xl">${item.icon}</div>
-            </div>
-            <div class="mt-4 h-1 w-full bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
-                <div class="h-full bg-${item.color}-500 rounded-full" style="width: ${item.percentage}%"></div>
-            </div>
-        </div>
-    `,
-    )
-    .join("");
+  container.innerHTML = cards.map(c => `
+    <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 hover-lift">
+      <div class="flex items-center justify-between mb-2">
+        <p class="text-xs text-gray-500 dark:text-gray-400 font-medium">${c.label}</p>
+        <span class="text-lg">${c.icon}</span>
+      </div>
+      <p class="text-2xl font-bold text-gray-900 dark:text-white">${c.value}</p>
+    </div>
+  `).join("");
 }
 
+function updateWarnings(result) {
+  const section = document.getElementById("warningsSection");
+  const list = document.getElementById("warningsList");
+  const warnings = result.warnings || [];
+
+  if (!warnings.length) {
+    section.classList.add("hidden");
+    return;
+  }
+
+  section.classList.remove("hidden");
+  list.innerHTML = warnings.map(w => `<li>${w}</li>`).join("");
+}
+
+function handleHumanReview(result) {
+  const banner = document.getElementById("humanReviewBanner");
+  const role = document.getElementById("assignedRole");
+  const next = document.getElementById("nextStage");
+  const flow = document.getElementById("crowdFlow");
+
+  if (result.requires_human_review) {
+    banner.classList.remove("hidden");
+    if (flow) flow.classList.remove("hidden");
+    if (role) role.textContent = result.crowd_flow?.assigned_role || "Annotator";
+    if (next) next.textContent = result.crowd_flow?.next_stage || "Reviewer Approval";
+  } else {
+    banner.classList.add("hidden");
+    if (flow) flow.classList.add("hidden");
+  }
+}
+
+function updateLabelDistribution(result) {
+  const section = document.getElementById("distributionSection");
+  const grid = document.getElementById("distributionGrid");
+  const totalEl = document.getElementById("totalAnnotations");
+
+  const dist = result.label_distribution;
+  if (!dist || Object.keys(dist).length === 0) {
+    section.classList.add("hidden");
+    return;
+  }
+
+  section.classList.remove("hidden");
+  const total = result.summary?.num_annotations || 1;
+  totalEl.textContent = `Total: ${total} annotations`;
+
+  // Sort by count desc
+  const sorted = Object.entries(dist).sort((a, b) => b[1].count - a[1].count);
+
+  grid.innerHTML = sorted.map(([label, data]) => {
+    const pct = ((data.count / total) * 100).toFixed(1);
+    return `
+      <div class="border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
+        <div class="flex items-center justify-between mb-2">
+          <span class="font-medium text-gray-900 dark:text-white text-sm truncate">${label}</span>
+          <span class="text-sm font-semibold text-blue-600 dark:text-blue-400 ml-2">${data.count}</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <div class="flex-1 h-1.5 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
+            <div class="h-full bg-blue-500 rounded-full transition-all" style="width:${Math.min(pct, 100)}%"></div>
+          </div>
+          <span class="text-xs text-gray-400 font-medium">${pct}%</span>
+        </div>
+        <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">ID: ${data.category_id}</p>
+      </div>
+    `;
+  }).join("");
+}
+
+function updateJSONViewer(result) {
+  const output = document.getElementById("jsonOutput");
+  const jsonStr = JSON.stringify(result, null, 2);
+
+  const highlighted = jsonStr
+    .replace(/(\"(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*\"(\s*:)?)/g, (match) => {
+      if (/:$/.test(match)) return `<span class="json-key">${escHtml(match)}</span>`;
+      return `<span class="json-string">${escHtml(match)}</span>`;
+    })
+    .replace(/\b(true|false)\b/g, '<span class="json-boolean">$1</span>')
+    .replace(/\b(null)\b/g, '<span class="json-null">$1</span>')
+    .replace(/\b(\d+\.?\d*)\b/g, '<span class="json-number">$1</span>');
+
+  output.innerHTML = highlighted;
+}
+
+function escHtml(str) {
+  return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+// ============================================================
+// REVIEW QUEUE
+// ============================================================
+
 function reviewUnannotatedImages() {
-  if (!currentResult || !currentResult.summary) {
-    showError("No validation data available.");
-    return;
-  }
+  if (!currentResult?.summary) { showError("No validation data."); return; }
 
-  const count = currentResult.summary.images_without_annotations;
+  const count = currentResult.summary.images_without_annotations || 0;
+  if (count === 0) { showSuccess("All images are annotated 🎉"); return; }
 
-  if (count === 0) {
-    showSuccess("All images are annotated 🎉");
-    return;
-  }
+  const unannotatedIds = currentResult.review_payload?.unannotated_images || [];
 
-  // Update modal data
   document.getElementById("reviewImageCount").textContent = count;
 
-  // (MVP) Placeholder thumbnails
   const list = document.getElementById("reviewImageList");
-  list.innerHTML = "";
-  for (let i = 0; i < Math.min(count, 6); i++) {
-    list.innerHTML += `
-            <div class="h-24 bg-gray-200 dark:bg-gray-700 rounded-lg flex items-center justify-center text-sm text-gray-500">
-                Image ${i + 1}
-            </div>
-        `;
+  list.innerHTML = unannotatedIds.slice(0, 12).map(id => `
+    <div class="h-20 bg-gray-100 dark:bg-gray-700 rounded-lg flex flex-col items-center justify-center text-xs text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-600 gap-1">
+      <span class="text-xl">🖼️</span>
+      <span>ID: ${id}</span>
+    </div>
+  `).join("");
+
+  if (unannotatedIds.length > 12) {
+    list.innerHTML += `<div class="col-span-3 text-center text-xs text-gray-400 py-2">…and ${unannotatedIds.length - 12} more</div>`;
   }
 
-  // ✅ OPEN MODAL
   const modal = document.getElementById("reviewModal");
   modal.classList.remove("hidden");
   modal.classList.add("flex");
@@ -531,121 +667,52 @@ function closeReviewModal() {
   modal.classList.remove("flex");
 }
 
-// Update label distribution section
-function updateLabelDistribution(result) {
-  const container = document.getElementById("distributionSection");
-  const grid = document.getElementById("distributionGrid");
-  const totalAnnotationsEl = document.getElementById("totalAnnotations");
+function exportUnannotatedList() {
+  if (!currentResult?.review_payload) return;
 
-  if (
-    !result.label_distribution ||
-    Object.keys(result.label_distribution).length === 0
-  ) {
-    container.classList.add("hidden");
-    return;
-  }
-
-  container.classList.remove("hidden");
-
-  const totalAnnotations = result.summary?.num_annotations || 1;
-  const distribution = result.label_distribution;
-
-  totalAnnotationsEl.textContent = `Total: ${totalAnnotations} annotations`;
-
-  grid.innerHTML = Object.entries(distribution)
-    .map(([label, data]) => {
-      const percentage = ((data.count / totalAnnotations) * 100).toFixed(1);
-      const width = Math.min(percentage, 100);
-
-      return `
-            <div class="border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
-                <div class="flex items-center justify-between mb-2">
-                    <span class="font-medium text-gray-900 dark:text-white truncate">${label}</span>
-                    <span class="text-sm font-medium text-primary-600 dark:text-primary-400 flex-shrink-0 ml-2">${data.count}</span>
-                </div>
-                <div class="flex items-center space-x-2">
-                    <div class="flex-1 h-2 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
-                        <div class="h-full bg-primary-500 rounded-full" style="width: ${width}%"></div>
-                    </div>
-                    <span class="text-xs text-gray-500 dark:text-gray-400 font-medium">${percentage}%</span>
-                </div>
-                <div class="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                    Category ID: ${data.category_id}
-                </div>
-            </div>
-        `;
-    })
-    .join("");
+  const ids = currentResult.review_payload.unannotated_images || [];
+  const blob = new Blob([JSON.stringify({ unannotated_image_ids: ids }, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "unannotated_image_ids.json";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showSuccess("Exported unannotated image IDs");
 }
 
-// Update JSON viewer with syntax highlighting
-function updateJSONViewer(result) {
-  const jsonOutput = document.getElementById("jsonOutput");
-  const jsonString = JSON.stringify(result, null, 2);
+// ============================================================
+// JSON VIEWER CONTROLS
+// ============================================================
 
-  // Basic syntax highlighting
-  const highlighted = jsonString
-    .replace(
-      /("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?)/g,
-      function (match) {
-        let cls = "json-key";
-        if (/:$/.test(match)) {
-          return `<span class="${cls}">${match}</span>`;
-        }
-        return `<span class="json-string">${match}</span>`;
-      },
-    )
-    .replace(/\b(true|false)\b/g, '<span class="json-boolean">$1</span>')
-    .replace(/\b(null)\b/g, '<span class="json-null">$1</span>')
-    .replace(/\b(\d+)\b/g, '<span class="json-number">$1</span>');
-
-  jsonOutput.innerHTML = highlighted;
-}
-
-// Toggle raw JSON view
 function toggleRawJSON() {
-  const jsonViewer = document.getElementById("jsonViewer");
-  const toggleBtn = document.querySelector('button[onclick="toggleRawJSON()"]');
+  const viewer = document.getElementById("jsonViewer");
+  const btn = document.querySelector('button[onclick="toggleRawJSON()"]');
+  const isCollapsed = viewer.classList.contains("max-h-96");
 
-  if (jsonViewer.classList.contains("max-h-96")) {
-    jsonViewer.classList.remove("max-h-96");
-    jsonViewer.classList.add("max-h-screen");
-    toggleBtn.textContent = "Collapse View";
-  } else {
-    jsonViewer.classList.remove("max-h-screen");
-    jsonViewer.classList.add("max-h-96");
-    toggleBtn.textContent = "Expand View";
-  }
+  viewer.classList.toggle("max-h-96", !isCollapsed);
+  viewer.classList.toggle("max-h-screen", isCollapsed);
+  if (btn) btn.textContent = isCollapsed ? "Collapse View" : "Toggle Full View";
 }
 
-// Copy JSON to clipboard
 function copyJSON() {
   if (!currentResult) return;
-
-  const jsonString = JSON.stringify(currentResult, null, 2);
-
-  navigator.clipboard
-    .writeText(jsonString)
-    .then(() => {
-      showSuccess("JSON copied to clipboard!");
-    })
-    .catch((err) => {
-      showError("Failed to copy JSON: " + err.message);
-    });
+  navigator.clipboard.writeText(JSON.stringify(currentResult, null, 2))
+    .then(() => showSuccess("JSON copied to clipboard!"))
+    .catch(() => showError("Copy failed"));
 }
 
-// Download validation report
+// ============================================================
+// DOWNLOAD VALIDATION REPORT
+// ============================================================
+
 function downloadReport() {
-  if (!currentResult) {
-    showError("No validation results to download");
-    return;
-  }
+  if (!currentResult) { showError("No results to download"); return; }
 
-  const blob = new Blob([JSON.stringify(currentResult, null, 2)], {
-    type: "application/json",
-  });
+  const blob = new Blob([JSON.stringify(currentResult, null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
-
   const a = document.createElement("a");
   a.href = url;
   a.download = `validation_report_${new Date().toISOString().slice(0, 10)}.json`;
@@ -653,57 +720,43 @@ function downloadReport() {
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
-
-  showSuccess("Report downloaded successfully!");
+  showSuccess("Report downloaded!");
 }
 
-// Reset page to initial state
-function resetPage() {
-  // Clear file input
+// ============================================================
+// RESET
+// ============================================================
+
+function resetResults() {
   selectedFile = null;
   currentResult = null;
   document.getElementById("fileInput").value = "";
   document.getElementById("selectedFile").classList.add("hidden");
-
-  // Reset validation button text + spinner
-  const validateBtn = document.getElementById("validateBtn");
-  const validateText = document.getElementById("validateText");
-  const spinner = document.getElementById("loadingSpinner");
-
-  validateBtn.disabled = true;
-  validateText.textContent = "Validate Dataset";
-  spinner.classList.add("hidden");
-
-  // Hide results section and show empty state
+  document.getElementById("validateBtn").disabled = true;
+  document.getElementById("validateText").textContent = "Validate Dataset";
+  document.getElementById("loadingSpinner").classList.add("hidden");
   document.getElementById("resultsSection").classList.add("hidden");
   document.getElementById("emptyState").classList.remove("hidden");
-
-  // Reset human review elements
   document.getElementById("humanReviewBanner").classList.add("hidden");
+  document.getElementById("warningsSection").classList.add("hidden");
+  document.getElementById("autoAnnResult").classList.add("hidden");
 
-  const help = document.getElementById("humanReviewHelp");
-  if (help) help.classList.add("hidden");
+  const viewer = document.getElementById("jsonViewer");
+  viewer.classList.add("max-h-96");
+  viewer.classList.remove("max-h-screen");
 
-  document.getElementById("crowdFlow").classList.add("hidden");
-
-  // Reset JSON viewer size
-  const jsonViewer = document.getElementById("jsonViewer");
-  const toggleBtn = document.querySelector('button[onclick="toggleRawJSON()"]');
-
-  jsonViewer.classList.remove("max-h-screen");
-  jsonViewer.classList.add("max-h-96");
-
-  if (toggleBtn) toggleBtn.textContent = "Toggle Full View";
-
-  // Success message
-  showSuccess("Page has been reset");
+  showSuccess("Results cleared");
 }
 
-// Load sample data for demonstration
+// ============================================================
+// SAMPLE DATA
+// ============================================================
+
 function loadSample() {
-  // Create a sample COCO format JSON
-  const sampleData = {
+  currentResult = {
     status: "success",
+    review_status: "pending",
+    requires_human_review: true,
     summary: {
       num_images: 145,
       num_annotations: 892,
@@ -711,7 +764,8 @@ function loadSample() {
       images_with_annotations: 142,
       images_without_annotations: 3,
       estimated_quality_score: 72,
-      requires_human_review: true,
+      average_annotations_per_image: 6.15,
+      average_confidence: 0.71,
     },
     label_distribution: {
       person: { category_id: "1", count: 234 },
@@ -724,72 +778,62 @@ function loadSample() {
       "traffic sign": { category_id: "8", count: 12 },
     },
     crowd_flow: {
-      assigned_role: "Annotator",
-      next_stage: "Reviewer Approval",
+      assigned_role: "annotator",
+      next_stage: "reviewer_approval",
+      current_stage: "annotator_review",
+    },
+    warnings: [
+      "3 image(s) have no annotations",
+      "14 annotation(s) below confidence threshold (0.6)",
+    ],
+    review_payload: {
+      unannotated_images: [101, 102, 103],
+      low_confidence_annotations: [],
+      orphan_annotations: [],
+      invalid_category_annotations: [],
     },
     notes: [
-      "Validated using external schema.json",
-      "COCO-style dataset structure",
-      "Quality score is heuristic-based (customizable)",
-      "Human review triggered due to low confidence annotations",
+      "COCO schema validated successfully",
+      "Quality score: density (0–70) + coverage (0–30)",
+      "Human-in-the-loop pipeline enabled",
     ],
   };
 
-  // Display the sample results
-  currentResult = sampleData;
-  displayResults(sampleData);
-
-  // Show notification
-  showSuccess("Sample data loaded successfully!");
+  displayResults(currentResult);
+  showSuccess("Sample data loaded!");
 }
 
-// Show error message
-function showError(message) {
-  showNotification(message, "error");
-}
+// ============================================================
+// NOTIFICATIONS
+// ============================================================
 
-// Show success message
-function showSuccess(message) {
-  showNotification(message, "success");
-}
+function showError(msg) { showNotification(msg, "error"); }
+function showSuccess(msg) { showNotification(msg, "success"); }
 
-// Show notification
 function showNotification(message, type = "info") {
-  // Remove existing notifications
-  const existingNotifications = document.querySelectorAll(".notification");
-  existingNotifications.forEach((notification) => {
-    notification.classList.add("hiding");
-    setTimeout(() => notification.remove(), 300);
-  });
+  document.querySelectorAll(".notification").forEach(n => n.remove());
 
-  // Create notification element
-  const notification = document.createElement("div");
-  notification.className = `fixed top-4 right-4 px-4 py-3 rounded-lg shadow-lg z-50 notification ${
-    type === "error"
-      ? "bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400"
-      : type === "success"
-        ? "bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 text-green-700 dark:text-green-400"
-        : "bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-400"
-  }`;
+  const n = document.createElement("div");
+  const colors = {
+    error: "bg-red-50 dark:bg-red-900/40 border border-red-200 dark:border-red-700 text-red-700 dark:text-red-300",
+    success: "bg-green-50 dark:bg-green-900/40 border border-green-200 dark:border-green-700 text-green-700 dark:text-green-300",
+    info: "bg-blue-50 dark:bg-blue-900/40 border border-blue-200 dark:border-blue-700 text-blue-700 dark:text-blue-300",
+  };
+  const icons = { error: "❌", success: "✅", info: "ℹ️" };
 
-  const icon = type === "error" ? "❌" : type === "success" ? "✅" : "ℹ️";
+  n.className = `fixed top-5 left-1/2 -translate-x-1/2 px-4 py-3 rounded-lg shadow-lg z-[9999] notification flex items-center gap-2 text-sm font-medium max-w-sm ${colors[type] || colors.info}`;
+  n.innerHTML = `<span>${icons[type] || ""}</span><span>${message}</span>`;
+  document.body.appendChild(n);
 
-  notification.innerHTML = `
-        <div class="flex items-center space-x-2">
-            <span>${icon}</span>
-            <span>${message}</span>
-        </div>
-    `;
+  setTimeout(() => { if (n.parentNode) n.remove(); }, 5000);
+}
 
-  document.body.appendChild(notification);
+// ============================================================
+// UTILS
+// ============================================================
 
-  // Remove notification after 5 seconds
-  setTimeout(() => {
-    notification.classList.add("hiding");
-    setTimeout(() => {
-      if (notification.parentNode) {
-        notification.remove();
-      }
-    }, 300);
-  }, 5000);
+function formatBytes(bytes) {
+  if (bytes < 1024) return bytes + " B";
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
+  return (bytes / (1024 * 1024)).toFixed(2) + " MB";
 }
