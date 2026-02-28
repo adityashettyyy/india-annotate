@@ -828,12 +828,50 @@ function showNotification(message, type = "info") {
   setTimeout(() => { if (n.parentNode) n.remove(); }, 5000);
 }
 
-// ============================================================
-// UTILS
-// ============================================================
-
 function formatBytes(bytes) {
   if (bytes < 1024) return bytes + " B";
   if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
   return (bytes / (1024 * 1024)).toFixed(2) + " MB";
 }
+
+// Override fetch to always inject auth token
+const _origFetch = window.fetch;
+window.fetch = function(url, opts = {}) {
+  const token = localStorage.getItem('ia_token');
+  if (token && typeof url === 'string' && url.startsWith(API_BASE_URL)) {
+    opts.headers = {
+      ...(opts.headers || {}),
+      'X-Auth-Token': token,
+    };
+  }
+  return _origFetch(url, opts);
+};
+
+// Redirect to annotator from session panel
+function openAnnotator() {
+  if (!currentSessionId) { showError('No active session'); return; }
+  window.location.href = `annotator.html?session=${currentSessionId}`;
+}
+
+// Logout
+function logout() {
+  localStorage.removeItem('ia_token');
+  localStorage.removeItem('ia_username');
+  localStorage.removeItem('ia_role');
+  localStorage.removeItem('indiaAnnotate_sessionId');
+  window.location.href = 'auth.html';
+}
+
+// Redirect to login if not authenticated (on page load)
+(function checkAuth() {
+  const token = localStorage.getItem('ia_token');
+  if (!token && window.location.pathname !== '/auth.html') {
+    window.location.href = 'auth.html';
+  }
+  const username = localStorage.getItem('ia_username');
+  const role     = localStorage.getItem('ia_role');
+  if (username) {
+    const el = document.getElementById('headerUser');
+    if (el) el.textContent = `👤 ${username}`;
+  }
+})();
