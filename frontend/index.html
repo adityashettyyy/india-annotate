@@ -78,10 +78,37 @@
                         COCO Validator · YOLO Auto-Annotator · Human-in-the-Loop
                     </p>
                 </div>
-                <div class="hidden sm:flex items-center space-x-2 text-sm">
-                    <div id="apiDot" class="h-2 w-2 rounded-full bg-yellow-400 animate-pulse"></div>
-                    <span class="text-gray-600 dark:text-gray-400">API:</span>
-                    <span id="apiStatus" class="font-medium text-gray-500 dark:text-gray-400">Checking…</span>
+                <div class="hidden sm:flex items-center gap-3 text-sm flex-wrap justify-end">
+                    <div class="flex items-center gap-2 px-3 py-1.5 bg-gray-100 dark:bg-gray-800 rounded-full">
+                        <div class="h-2 w-2 rounded-full bg-green-500"></div>
+                        <span id="headerUser" class="font-medium text-gray-700 dark:text-gray-300 text-xs">Loading…</span>
+                    </div>
+
+                    <!-- Annotator button — hidden until a session is active -->
+                    <button id="annotateNavBtn" onclick="openAnnotator()"
+                        class="hidden px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white text-xs font-medium rounded-full transition-colors flex items-center gap-1.5">
+                        ✏️ Open Annotator
+                    </button>
+
+                    <!-- Reviewer Dashboard — only shown for reviewer / admin role -->
+                    <a id="reviewerNavBtn" href="reviewer.html"
+                        class="hidden px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-medium rounded-full transition-colors flex items-center gap-1.5">
+                        👁 Reviewer Dashboard
+                    </a>
+
+                    <!-- API status dot -->
+                    <div class="flex items-center gap-1.5">
+                        <div id="apiDot" class="h-2 w-2 rounded-full bg-yellow-400 animate-pulse"></div>
+                        <span class="text-gray-500 dark:text-gray-400">API:</span>
+                        <span id="apiStatus" class="font-medium text-gray-500 dark:text-gray-400">Checking…</span>
+                    </div>
+
+                    <!-- Sign Out -->
+                    <button onclick="logout()"
+                        class="px-3 py-1.5 text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-colors rounded-full hover:bg-red-50 dark:hover:bg-red-900/20">
+                        Sign Out
+                    </button>
+
                 </div>
             </div>
         </div>
