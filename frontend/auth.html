@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IndiaAnnotate – Sign In</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="style.css">
+
+    <link rel="icon" type="image/svg+xml"
+        href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🔐</text></svg>">
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+                    colors: {
+                        primary: { 50: '#eff6ff', 100: '#dbeafe', 500: '#3b82f6', 600: '#2563eb', 700: '#1d4ed8' },
+                        saffron: '#FF9933',
+                        green: '#138808',
+                        navy: '#000080'
+                    },
+                    animation: {
+                        'fade-in': 'fadeIn 0.5s ease-out',
+                        'slide-up': 'slideUp 0.3s ease-out',
+                        'pulse-soft': 'pulseSoft 2s infinite',
+                    },
+                    keyframes: {
+                        fadeIn: { '0%': { opacity: '0' }, '100%': { opacity: '1' } },
+                        slideUp: { '0%': { transform: 'translateY(10px)', opacity: '0' }, '100%': { transform: 'translateY(0)', opacity: '1' } },
+                        pulseSoft: { '0%, 100%': { opacity: '1' }, '50%': { opacity: '0.7' } }
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="font-sans bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 min-h-screen transition-colors duration-200 flex items-center justify-center p-4">
+
+    <!-- Global Loading Overlay (hidden by default) -->
+    <div id="globalLoading" class="loading-overlay">
+        <div class="text-center">
+            <div class="progress-bar mb-3"></div>
+            <p id="loadingMessage" class="text-gray-700 dark:text-gray-300 font-medium">Processing… please wait</p>
+        </div>
+    </div>
+
+    <!-- Theme Toggle -->
+    <button id="themeToggle"
+        class="fixed top-4 right-4 z-50 p-2 rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors shadow-lg"
+        aria-label="Toggle theme">
+        <svg id="sunIcon" class="w-5 h-5 text-gray-800 dark:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+        </svg>
+        <svg id="moonIcon" class="w-5 h-5 text-gray-100 hidden dark:block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+        </svg>
+    </button>
+
+    <!-- Auth Card -->
+    <div class="w-full max-w-md animate-fade-in">
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-8">
+            
+            <!-- Logo with Indian Flag Colors -->
+            <div class="flex items-center gap-3 mb-6">
+                <div class="flex h-10 w-6 overflow-hidden rounded">
+                    <div class="w-2 bg-[#FF9933]"></div>
+                    <div class="w-2 bg-white"></div>
+                    <div class="w-2 bg-[#138808]"></div>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold text-gray-900 dark:text-white">IndiaAnnotate</h1>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">Sign in to continue</p>
+                </div>
+            </div>
+
+            <!-- Tabs -->
+            <div class="flex gap-1 p-1 bg-gray-100 dark:bg-gray-700 rounded-lg mb-6">
+                <button id="loginTab" onclick="switchTab('login')" 
+                    class="flex-1 px-4 py-2 text-sm font-medium rounded-md transition-all duration-200 bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-sm">Sign In</button>
+                <button id="registerTab" onclick="switchTab('register')" 
+                    class="flex-1 px-4 py-2 text-sm font-medium rounded-md transition-all duration-200 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">Register</button>
+            </div>
+
+            <!-- Alert -->
+            <div id="alert" class="hidden mb-4 p-3 rounded-lg text-sm"></div>
+
+            <!-- Login Form -->
+            <div id="loginForm">
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Username</label>
+                        <input type="text" id="loginUsername" 
+                            class="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 transition-colors"
+                            placeholder="your username">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Password</label>
+                        <input type="password" id="loginPassword" 
+                            class="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 transition-colors"
+                            placeholder="••••••••" onkeydown="if(event.key==='Enter') doLogin()">
+                    </div>
+                    <button onclick="doLogin()" id="loginBtn"
+                        class="w-full px-6 py-2.5 bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                        Sign In
+                    </button>
+                </div>
+
+                <!-- Default Credentials -->
+                <div class="mt-6 p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
+                    <p class="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">🔑 Default Accounts</p>
+                    <div class="space-y-1 text-xs">
+                        <p class="text-gray-600 dark:text-gray-400"><span class="font-mono font-medium text-gray-800 dark:text-gray-200">admin / admin123</span> <span class="text-primary-600 dark:text-primary-400 ml-2">(admin)</span></p>
+                        <p class="text-gray-600 dark:text-gray-400"><span class="font-mono font-medium text-gray-800 dark:text-gray-200">reviewer / reviewer123</span> <span class="text-amber-600 dark:text-amber-400 ml-2">(reviewer)</span></p>
+                        <p class="text-gray-600 dark:text-gray-400"><span class="font-mono font-medium text-gray-800 dark:text-gray-200">annotator / annotate123</span> <span class="text-green-600 dark:text-green-400 ml-2">(annotator)</span></p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Register Form -->
+            <div id="registerForm" class="hidden">
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Username</label>
+                        <input type="text" id="regUsername" 
+                            class="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 transition-colors"
+                            placeholder="choose a username">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Password</label>
+                        <input type="password" id="regPassword" 
+                            class="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 transition-colors"
+                            placeholder="min 6 characters">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Role</label>
+                        <select id="regRole" 
+                            class="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 transition-colors">
+                            <option value="annotator" class="bg-white dark:bg-gray-800">Annotator — label images</option>
+                            <option value="reviewer" class="bg-white dark:bg-gray-800">Reviewer — approve / reject</option>
+                        </select>
+                    </div>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        Annotators draw bounding boxes. Reviewers approve or reject submissions.
+                    </p>
+                    <button onclick="doRegister()" id="registerBtn"
+                        class="w-full px-6 py-2.5 bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                        Create Account
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <p class="text-center text-xs text-gray-500 dark:text-gray-400 mt-6">
+            🇮🇳 IndiaAnnotate · Secure annotation platform
+        </p>
+    </div>
+
+    <script>
+        window.API_BASE_URL = 'http://127.0.0.1:5000';
+
+        // Theme Toggle
+        const themeToggle = document.getElementById('themeToggle');
+        const html = document.documentElement;
+        
+        // Check for saved theme preference
+        if (localStorage.getItem('theme') === 'dark' || (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            html.classList.add('dark');
+        } else {
+            html.classList.remove('dark');
+        }
+
+        themeToggle.addEventListener('click', () => {
+            html.classList.toggle('dark');
+            localStorage.setItem('theme', html.classList.contains('dark') ? 'dark' : 'light');
+        });
+
+        // Auth Functions
+        function switchTab(tab) {
+            const isLogin = tab === 'login';
+            document.getElementById('loginForm').style.display = isLogin ? 'block' : 'none';
+            document.getElementById('registerForm').style.display = isLogin ? 'none' : 'block';
+            
+            // Update tab styles
+            document.getElementById('loginTab').className = isLogin 
+                ? 'flex-1 px-4 py-2 text-sm font-medium rounded-md transition-all duration-200 bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-sm'
+                : 'flex-1 px-4 py-2 text-sm font-medium rounded-md transition-all duration-200 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white';
+            
+            document.getElementById('registerTab').className = !isLogin 
+                ? 'flex-1 px-4 py-2 text-sm font-medium rounded-md transition-all duration-200 bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-sm'
+                : 'flex-1 px-4 py-2 text-sm font-medium rounded-md transition-all duration-200 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white';
+            
+            hideAlert();
+        }
+
+        function showAlert(msg, type = 'error') {
+            const el = document.getElementById('alert');
+            el.textContent = msg;
+            el.className = `block mb-4 p-3 rounded-lg text-sm ${
+                type === 'error' 
+                    ? 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400'
+                    : 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-700 dark:text-green-400'
+            }`;
+        }
+
+        function hideAlert() {
+            document.getElementById('alert').classList.add('hidden');
+        }
+
+        function setLoading(btnId, loading) {
+            const btn = document.getElementById(btnId);
+            if (loading) {
+                btn.disabled = true;
+                btn.innerHTML = btn.innerHTML + '<svg class="inline w-4 h-4 ml-2 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>';
+            } else {
+                btn.disabled = false;
+                btn.innerHTML = btnId === 'loginBtn' ? 'Sign In' : 'Create Account';
+            }
+        }
+
+        async function doLogin() {
+            const username = document.getElementById('loginUsername').value.trim();
+            const password = document.getElementById('loginPassword').value;
+            if (!username || !password) {
+                showAlert('Please enter username and password');
+                return;
+            }
+
+            setLoading('loginBtn', true);
+            hideAlert();
+
+            try {
+                const res = await fetch(`${window.API_BASE_URL}/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password }),
+                });
+                const data = await res.json();
+
+                if (!res.ok || data.status !== 'success') {
+                    showAlert(data.message || 'Login failed');
+                    return;
+                }
+
+                localStorage.setItem('ia_token', data.token);
+                localStorage.setItem('ia_username', data.username);
+                localStorage.setItem('ia_role', data.role);
+
+                showAlert('Login successful! Redirecting...', 'success');
+
+                setTimeout(() => {
+                    if (data.role === 'reviewer' || data.role === 'admin') {
+                        window.location.href = 'reviewer.html';
+                    } else {
+                        window.location.href = 'index.html';
+                    }
+                }, 600);
+
+            } catch (e) {
+                showAlert('Network error: ' + e.message);
+            } finally {
+                setLoading('loginBtn', false);
+            }
+        }
+
+        async function doRegister() {
+            const username = document.getElementById('regUsername').value.trim();
+            const password = document.getElementById('regPassword').value;
+            const role = document.getElementById('regRole').value;
+
+            if (!username || !password) {
+                showAlert('All fields are required');
+                return;
+            }
+            if (password.length < 6) {
+                showAlert('Password must be at least 6 characters');
+                return;
+            }
+
+            setLoading('registerBtn', true);
+            hideAlert();
+
+            try {
+                const res = await fetch(`${window.API_BASE_URL}/auth/register`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password, role }),
+                });
+                const data = await res.json();
+
+                if (!res.ok || data.status !== 'success') {
+                    showAlert(data.message || 'Registration failed');
+                    return;
+                }
+
+                showAlert('Account created! You can now sign in.', 'success');
+                setTimeout(() => switchTab('login'), 1200);
+
+            } catch (e) {
+                showAlert('Network error: ' + e.message);
+            } finally {
+                setLoading('registerBtn', false);
+            }
+        }
+
+        // Auto-redirect if already logged in
+        const token = localStorage.getItem('ia_token');
+        const role = localStorage.getItem('ia_role');
+        if (token) {
+            if (role === 'reviewer' || role === 'admin') {
+                window.location.href = 'reviewer.html';
+            } else {
+                window.location.href = 'index.html';
+            }
+        }
+    </script>
+</body>
+</html>
