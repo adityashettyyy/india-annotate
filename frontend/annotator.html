@@ -1,0 +1,775 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IndiaAnnotate – Annotator</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="style.css">
+
+    <link rel="icon" type="image/svg+xml"
+        href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>✏️</text></svg>">
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: { 
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace']
+                    },
+                    colors: {
+                        primary: { 50: '#eff6ff', 100: '#dbeafe', 500: '#3b82f6', 600: '#2563eb', 700: '#1d4ed8' },
+                        saffron: '#FF9933',
+                    },
+                    animation: {
+                        'fade-in': 'fadeIn 0.5s ease-out',
+                        'slide-up': 'slideUp 0.3s ease-out',
+                        'pulse-soft': 'pulseSoft 2s infinite',
+                        'spin-slow': 'spin 0.7s linear infinite',
+                    },
+                    keyframes: {
+                        fadeIn: { '0%': { opacity: '0' }, '100%': { opacity: '1' } },
+                        slideUp: { '0%': { transform: 'translateY(10px)', opacity: '0' }, '100%': { transform: 'translateY(0)', opacity: '1' } },
+                        pulseSoft: { '0%, 100%': { opacity: '1' }, '50%': { opacity: '0.7' } }
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="font-sans bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 h-screen overflow-hidden flex flex-col transition-colors duration-200">
+
+    <!-- Global Loading Overlay -->
+    <div id="globalLoading" class="loading-overlay">
+        <div class="text-center">
+            <div class="progress-bar mb-3"></div>
+            <p id="loadingMessage" class="text-gray-700 dark:text-gray-300 font-medium">Processing… please wait</p>
+        </div>
+    </div>
+
+    <!-- Theme Toggle -->
+    <button id="themeToggle"
+        class="fixed top-4 right-4 z-50 p-2 rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors shadow-lg"
+        aria-label="Toggle theme">
+        <svg id="sunIcon" class="w-5 h-5 text-gray-800 dark:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+        </svg>
+        <svg id="moonIcon" class="w-5 h-5 text-gray-100 hidden dark:block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+        </svg>
+    </button>
+
+    <!-- Top Bar -->
+    <header class="border-b border-gray-200 dark:border-gray-800 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm sticky top-0 z-40 flex-shrink-0">
+        <div class="px-4 sm:px-6 lg:px-8 py-3">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-4">
+                    <h1 class="text-lg font-bold">🇮🇳 IndiaAnnotate</h1>
+                    <div class="h-4 w-px bg-gray-300 dark:bg-gray-700"></div>
+                    <span id="tbSession" class="text-sm font-mono text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded"></span>
+                </div>
+                <div class="flex items-center gap-3">
+                    <span id="tbUser" class="text-sm text-gray-600 dark:text-gray-400"></span>
+                    <div class="flex items-center gap-2">
+                        <button onclick="saveAnnotations()" 
+                            class="px-3 py-1.5 bg-primary-600 hover:bg-primary-700 text-white text-xs font-medium rounded-lg transition-colors flex items-center gap-1">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                            </svg>
+                            Save
+                        </button>
+                        <button onclick="submitForReview()"
+                            class="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-medium rounded-lg transition-colors flex items-center gap-1">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                            </svg>
+                            Submit Review
+                        </button>
+                        <button onclick="goHome()"
+                            class="px-3 py-1.5 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 text-xs font-medium rounded-lg transition-colors">
+                            ← Home
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Grid -->
+    <div class="flex-1 flex overflow-hidden">
+        <!-- Left Panel - Image List -->
+        <div class="w-64 border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-800 flex flex-col overflow-hidden">
+            <div class="p-3 border-b border-gray-200 dark:border-gray-700">
+                <h3 class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Images</h3>
+            </div>
+            <div id="imageItems" class="flex-1 overflow-y-auto p-2 space-y-1">
+                <!-- Filled dynamically -->
+            </div>
+        </div>
+
+        <!-- Center - Canvas Area -->
+        <div class="flex-1 bg-gray-900 dark:bg-black relative overflow-hidden flex items-center justify-center">
+            <div id="canvasPlaceholder" class="text-center text-gray-500 dark:text-gray-400">
+                <div class="text-6xl mb-4">🖼️</div>
+                <p class="text-sm">Select an image to start annotating</p>
+            </div>
+            <canvas id="canvas" class="hidden absolute inset-0 w-full h-full object-contain"></canvas>
+            
+            <!-- Navigation Arrows -->
+            <button id="navPrev" onclick="navigateImage(-1)" 
+                class="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-gray-800/50 hover:bg-gray-700/50 text-white flex items-center justify-center backdrop-blur-sm border border-gray-700/50 transition-colors">
+                ←
+            </button>
+            <button id="navNext" onclick="navigateImage(1)" 
+                class="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-gray-800/50 hover:bg-gray-700/50 text-white flex items-center justify-center backdrop-blur-sm border border-gray-700/50 transition-colors">
+                →
+            </button>
+            
+            <!-- Image Counter -->
+            <div id="imgCounter" class="absolute bottom-4 left-1/2 -translate-x-1/2 px-3 py-1 bg-gray-800/80 backdrop-blur-sm rounded-full text-xs font-mono text-gray-300 border border-gray-700">
+                0 / 0
+            </div>
+        </div>
+
+        <!-- Right Panel - Tools & Annotations -->
+        <div class="w-80 border-l border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-800 flex flex-col overflow-hidden">
+            
+            <!-- Toolbar -->
+            <div class="p-3 border-b border-gray-200 dark:border-gray-700">
+                <div class="flex gap-1">
+                    <button id="toolDraw" onclick="setTool('draw')" 
+                        class="flex-1 px-3 py-2 text-xs font-medium rounded-lg transition-colors flex items-center justify-center gap-1 bg-primary-600 text-white">
+                        ✏️ Draw
+                    </button>
+                    <button id="toolSelect" onclick="setTool('select')" 
+                        class="flex-1 px-3 py-2 text-xs font-medium rounded-lg transition-colors flex items-center justify-center gap-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600">
+                        ↖ Select
+                    </button>
+                    <button onclick="deleteSelected()" 
+                        class="px-3 py-2 text-xs font-medium rounded-lg transition-colors bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-red-100 dark:hover:bg-red-900/20 hover:text-red-600 dark:hover:text-red-400">
+                        🗑
+                    </button>
+                </div>
+            </div>
+
+            <!-- Category Picker -->
+            <div class="p-3 border-b border-gray-200 dark:border-gray-700">
+                <h4 class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Category</h4>
+                <div id="catList" class="space-y-1 max-h-48 overflow-y-auto pr-1">
+                    <!-- Filled dynamically -->
+                </div>
+            </div>
+
+            <!-- Annotations List -->
+            <div class="flex-1 overflow-hidden p-3">
+                <div class="flex items-center justify-between mb-2">
+                    <h4 class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Annotations</h4>
+                    <span id="annCount" class="text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 px-2 py-0.5 rounded-full">0</span>
+                </div>
+                <div id="annList" class="space-y-1 overflow-y-auto max-h-full pr-1">
+                    <!-- Filled dynamically -->
+                </div>
+            </div>
+
+            <!-- Keyboard Shortcuts -->
+            <div class="p-3 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50">
+                <h4 class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Shortcuts</h4>
+                <div class="grid grid-cols-2 gap-x-2 gap-y-1 text-xs">
+                    <div class="flex justify-between"><span>Draw mode</span> <kbd class="font-mono bg-gray-200 dark:bg-gray-700 px-1.5 rounded">D</kbd></div>
+                    <div class="flex justify-between"><span>Select mode</span> <kbd class="font-mono bg-gray-200 dark:bg-gray-700 px-1.5 rounded">S</kbd></div>
+                    <div class="flex justify-between"><span>Delete</span> <kbd class="font-mono bg-gray-200 dark:bg-gray-700 px-1.5 rounded">Del</kbd></div>
+                    <div class="flex justify-between"><span>Next image</span> <kbd class="font-mono bg-gray-200 dark:bg-gray-700 px-1.5 rounded">→</kbd></div>
+                    <div class="flex justify-between"><span>Prev image</span> <kbd class="font-mono bg-gray-200 dark:bg-gray-700 px-1.5 rounded">←</kbd></div>
+                    <div class="flex justify-between"><span>Save</span> <kbd class="font-mono bg-gray-200 dark:bg-gray-700 px-1.5 rounded">⌘S</kbd></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed bottom-4 left-1/2 -translate-x-1/2 px-4 py-2 bg-gray-900 dark:bg-gray-700 text-white text-sm rounded-lg shadow-lg transition-all duration-300 opacity-0 translate-y-2 pointer-events-none z-50">
+    </div>
+
+    <!-- Loading Spinner Overlay -->
+    <div id="overlay" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50">
+        <div class="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-xl">
+            <div class="w-10 h-10 border-4 border-primary-200 border-t-primary-600 rounded-full animate-spin-slow"></div>
+        </div>
+    </div>
+
+    <script>
+        window.API_BASE_URL = 'http://127.0.0.1:5000';
+
+        // Theme Toggle
+        const themeToggle = document.getElementById('themeToggle');
+        const html = document.documentElement;
+        
+        if (localStorage.getItem('theme') === 'dark' || (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            html.classList.add('dark');
+        } else {
+            html.classList.remove('dark');
+        }
+
+        themeToggle.addEventListener('click', () => {
+            html.classList.toggle('dark');
+            localStorage.setItem('theme', html.classList.contains('dark') ? 'dark' : 'light');
+        });
+
+        // ==============================================================
+        // CONFIG & STATE
+        // ==============================================================
+        const API = window.API_BASE_URL;
+        const TOKEN = localStorage.getItem('ia_token');
+        const USERNAME = localStorage.getItem('ia_username') || 'guest';
+        const ROLE = localStorage.getItem('ia_role') || 'annotator';
+
+        if (!TOKEN) { window.location.href = 'auth.html'; }
+
+        document.getElementById('tbUser').textContent = `👤 ${USERNAME}`;
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const SESSION_ID = urlParams.get('session') || localStorage.getItem('indiaAnnotate_sessionId');
+
+        if (!SESSION_ID) {
+            showToast('No session ID — go back and upload a dataset', 'error');
+            document.getElementById('tbSession').textContent = '⚠ No session';
+        } else {
+            document.getElementById('tbSession').textContent = SESSION_ID.slice(0, 8) + '…';
+        }
+
+        // State
+        let images = [];
+        let currentIdx = 0;
+        let cocoData = null;
+        let currentAnns = [];
+        let categories = [];
+        let selectedCatId = null;
+        let selectedAnnId = null;
+        let tool = 'draw';
+
+        // Canvas state
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        let img = null;
+        let scale = 1;
+        let drawing = false;
+        let startX = 0, startY = 0;
+        let dragBox = null;
+
+        const CAT_COLORS = ['#FF9933', '#3b82f6', '#22c55e', '#ef4444', '#eab308', '#a855f7', '#ec4899', '#14b8a6', '#f97316', '#06b6d4'];
+        let nextAnnId = 1;
+
+        // ==============================================================
+        // INIT
+        // ==============================================================
+        async function init() {
+            if (!SESSION_ID) return;
+            showOverlay();
+            try {
+                await loadImages();
+                await loadAnnotations();
+                if (images.length > 0) selectImage(0);
+            } finally {
+                hideOverlay();
+            }
+        }
+
+        async function apiFetch(path, opts = {}) {
+            return fetch(`${API}${path}`, {
+                ...opts,
+                headers: {
+                    'X-Auth-Token': TOKEN,
+                    'Content-Type': 'application/json',
+                    ...(opts.headers || {}),
+                },
+            });
+        }
+
+        async function loadImages() {
+            const res = await apiFetch(`/session/${SESSION_ID}/images`);
+            const data = await res.json();
+            images = data.images || [];
+
+            const container = document.getElementById('imageItems');
+            if (images.length === 0) {
+                container.innerHTML = '<div class="p-4 text-sm text-gray-500 dark:text-gray-400 text-center">No images found</div>';
+                return;
+            }
+
+            container.innerHTML = images.map((img, i) => `
+                <div onclick="selectImage(${i})" 
+                     class="flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-all duration-200 hover:bg-gray-100 dark:hover:bg-gray-700 group ${i === currentIdx ? 'bg-primary-50 dark:bg-primary-900/20' : ''}"
+                     id="imgItem_${i}">
+                    <div class="w-2 h-2 rounded-full ${i === currentIdx ? 'bg-primary-500' : 'bg-gray-300 dark:bg-gray-600'}" id="imgDot_${i}"></div>
+                    <span class="text-sm truncate flex-1 ${i === currentIdx ? 'font-medium text-primary-600 dark:text-primary-400' : 'text-gray-700 dark:text-gray-300'}">${img.filename}</span>
+                    <span class="text-xs text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity">${i + 1}</span>
+                </div>
+            `).join('');
+        }
+
+        async function loadAnnotations() {
+            const res = await apiFetch(`/session/${SESSION_ID}/annotations/current`);
+            const data = await res.json();
+
+            if (data.status !== 'success') {
+                cocoData = { images: [], annotations: [], categories: [] };
+                return;
+            }
+
+            cocoData = data.annotations;
+
+            categories = (cocoData.categories || []).map((c, i) => ({
+                ...c,
+                color: CAT_COLORS[i % CAT_COLORS.length],
+            }));
+
+            if (categories.length === 0) {
+                const defaults = ['person', 'car', 'motorcycle', 'autorickshaw', 'bus', 'truck', 'bicycle', 'traffic sign'];
+                categories = defaults.map((name, i) => ({
+                    id: i + 1, name,
+                    color: CAT_COLORS[i % CAT_COLORS.length],
+                }));
+                cocoData.categories = categories.map(({ id, name }) => ({ id, name }));
+            }
+
+            selectedCatId = categories[0]?.id;
+            const maxId = Math.max(0, ...(cocoData.annotations || []).map(a => a.id));
+            nextAnnId = maxId + 1;
+
+            renderCategoryList();
+            markAnnotatedImages();
+        }
+
+        // ==============================================================
+        // IMAGE NAVIGATION
+        // ==============================================================
+        function selectImage(idx) {
+            currentIdx = idx;
+            document.querySelectorAll('[id^="imgItem_"]').forEach((el, i) => {
+                if (i === idx) {
+                    el.classList.add('bg-primary-50', 'dark:bg-primary-900/20');
+                    el.querySelector('span:first-of-type')?.classList.add('text-primary-600', 'dark:text-primary-400', 'font-medium');
+                    el.querySelector('span:first-of-type')?.classList.remove('text-gray-700', 'dark:text-gray-300');
+                } else {
+                    el.classList.remove('bg-primary-50', 'dark:bg-primary-900/20');
+                    el.querySelector('span:first-of-type')?.classList.remove('text-primary-600', 'dark:text-primary-400', 'font-medium');
+                    el.querySelector('span:first-of-type')?.classList.add('text-gray-700', 'dark:text-gray-300');
+                }
+            });
+
+            document.getElementById('imgCounter').textContent = `${idx + 1} / ${images.length}`;
+            loadImageToCanvas(images[idx]);
+            updateCurrentAnnotations();
+        }
+
+        function navigateImage(delta) {
+            const newIdx = currentIdx + delta;
+            if (newIdx < 0 || newIdx >= images.length) return;
+            selectImage(newIdx);
+        }
+
+        async function loadImageToCanvas(imgData) {
+            document.getElementById('canvasPlaceholder').style.display = 'none';
+            canvas.style.display = 'block';
+
+            try {
+                const res = await fetch(`${API}${imgData.url}`, { headers: { 'X-Auth-Token': TOKEN } });
+                const blob = await res.blob();
+                const url = URL.createObjectURL(blob);
+                
+                img = new Image();
+                img.onload = () => {
+                    const area = document.getElementById('canvasArea') || canvas.parentElement;
+                    const aW = area.clientWidth - 80;
+                    const aH = area.clientHeight - 40;
+
+                    scale = Math.min(aW / img.width, aH / img.height, 1);
+                    canvas.width = Math.round(img.width * scale);
+                    canvas.height = Math.round(img.height * scale);
+
+                    redraw();
+                };
+                img.src = url;
+            } catch (e) {
+                showToast('Failed to load image', 'error');
+            }
+        }
+
+        // ==============================================================
+        // CANVAS RENDERING
+        // ==============================================================
+        function redraw() {
+            if (!img) return;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+            currentAnns.forEach(ann => {
+                drawBox(ann, ann.id === selectedAnnId);
+            });
+
+            if (drawing && dragBox) {
+                const cat = categories.find(c => c.id === selectedCatId);
+                const color = cat?.color || '#FF9933';
+                const [bx, by, bw, bh] = dragBox;
+                
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 2;
+                ctx.setLineDash([5, 3]);
+                ctx.strokeRect(bx * scale, by * scale, bw * scale, bh * scale);
+                ctx.setLineDash([]);
+                ctx.fillStyle = color + '22';
+                ctx.fillRect(bx * scale, by * scale, bw * scale, bh * scale);
+            }
+        }
+
+        function drawBox(ann, isSelected = false) {
+            const [bx, by, bw, bh] = ann.bbox;
+            const cat = categories.find(c => c.id === ann.category_id);
+            const color = cat?.color || '#FF9933';
+
+            const sx = bx * scale, sy = by * scale, sw = bw * scale, sh = bh * scale;
+
+            ctx.strokeStyle = isSelected ? '#fff' : color;
+            ctx.lineWidth = isSelected ? 2.5 : 1.5;
+            ctx.setLineDash([]);
+            ctx.strokeRect(sx, sy, sw, sh);
+            ctx.fillStyle = color + (isSelected ? '33' : '18');
+            ctx.fillRect(sx, sy, sw, sh);
+
+            const label = cat?.name || `class_${ann.category_id}`;
+            const conf = ann.score ? ` ${(ann.score * 100).toFixed(0)}%` : '';
+            const text = label + conf;
+
+            ctx.font = '10px JetBrains Mono, monospace';
+            const tw = ctx.measureText(text).width + 8;
+            const th = 16;
+
+            ctx.fillStyle = color;
+            ctx.fillRect(sx, Math.max(0, sy - th), tw, th);
+            ctx.fillStyle = '#000';
+            ctx.fillText(text, sx + 4, Math.max(12, sy - 4));
+
+            if (isSelected) {
+                const corners = [[sx, sy], [sx + sw, sy], [sx, sy + sh], [sx + sw, sy + sh]];
+                corners.forEach(([cx, cy]) => {
+                    ctx.fillStyle = '#fff';
+                    ctx.fillRect(cx - 4, cy - 4, 8, 8);
+                    ctx.strokeStyle = color;
+                    ctx.lineWidth = 1.5;
+                    ctx.strokeRect(cx - 4, cy - 4, 8, 8);
+                });
+            }
+        }
+
+        // ==============================================================
+        // CANVAS MOUSE EVENTS
+        // ==============================================================
+        canvas.addEventListener('mousedown', onMouseDown);
+        canvas.addEventListener('mousemove', onMouseMove);
+        canvas.addEventListener('mouseup', onMouseUp);
+
+        function getImgCoords(e) {
+            const rect = canvas.getBoundingClientRect();
+            return {
+                x: (e.clientX - rect.left) / scale,
+                y: (e.clientY - rect.top) / scale,
+            };
+        }
+
+        function onMouseDown(e) {
+            const { x, y } = getImgCoords(e);
+
+            if (tool === 'select') {
+                const hit = findAnnotationAt(x, y);
+                selectedAnnId = hit ? hit.id : null;
+                renderAnnotationList();
+                redraw();
+                return;
+            }
+
+            if (!selectedCatId) { showToast('Select a category first', 'error'); return; }
+            drawing = true;
+            startX = x;
+            startY = y;
+            dragBox = [x, y, 0, 0];
+        }
+
+        function onMouseMove(e) {
+            if (!drawing || tool !== 'draw') return;
+            const { x, y } = getImgCoords(e);
+            dragBox = [
+                Math.min(startX, x),
+                Math.min(startY, y),
+                Math.abs(x - startX),
+                Math.abs(y - startY),
+            ];
+            redraw();
+        }
+
+        function onMouseUp(e) {
+            if (!drawing) return;
+            drawing = false;
+
+            const [bx, by, bw, bh] = dragBox;
+            dragBox = null;
+
+            if (bw < 8 || bh < 8) { redraw(); return; }
+
+            const imgEntry = findOrCreateCocoImage();
+
+            const newAnn = {
+                id: nextAnnId++,
+                image_id: imgEntry.id,
+                category_id: selectedCatId,
+                bbox: [Math.round(bx), Math.round(by), Math.round(bw), Math.round(bh)],
+                area: Math.round(bw * bh),
+                iscrowd: 0,
+                segmentation: [],
+            };
+
+            cocoData.annotations.push(newAnn);
+            currentAnns.push(newAnn);
+            selectedAnnId = newAnn.id;
+
+            renderAnnotationList();
+            markAnnotatedImages();
+            redraw();
+        }
+
+        // ==============================================================
+        // ANNOTATION HELPERS
+        // ==============================================================
+        function findAnnotationAt(x, y) {
+            for (let i = currentAnns.length - 1; i >= 0; i--) {
+                const [bx, by, bw, bh] = currentAnns[i].bbox;
+                if (x >= bx && x <= bx + bw && y >= by && y <= by + bh) return currentAnns[i];
+            }
+            return null;
+        }
+
+        function findOrCreateCocoImage() {
+            const imgFile = images[currentIdx];
+            let entry = cocoData.images.find(im => im.file_name === imgFile.filename);
+            if (!entry) {
+                entry = {
+                    id: cocoData.images.length + 1,
+                    file_name: imgFile.filename,
+                    width: img?.naturalWidth || 0,
+                    height: img?.naturalHeight || 0,
+                };
+                cocoData.images.push(entry);
+            }
+            return entry;
+        }
+
+        function updateCurrentAnnotations() {
+            const imgFile = images[currentIdx];
+            const imgEntry = cocoData?.images?.find(im => im.file_name === imgFile?.filename);
+            currentAnns = imgEntry ? (cocoData.annotations || []).filter(a => a.image_id === imgEntry.id) : [];
+            selectedAnnId = null;
+            renderAnnotationList();
+            redraw();
+        }
+
+        function deleteSelected() {
+            if (!selectedAnnId) return;
+            cocoData.annotations = cocoData.annotations.filter(a => a.id !== selectedAnnId);
+            currentAnns = currentAnns.filter(a => a.id !== selectedAnnId);
+            selectedAnnId = null;
+            renderAnnotationList();
+            markAnnotatedImages();
+            redraw();
+            showToast('Annotation deleted');
+        }
+
+        // ==============================================================
+        // RENDERING HELPERS
+        // ==============================================================
+        function renderCategoryList() {
+            const list = document.getElementById('catList');
+            list.innerHTML = categories.map(c => `
+                <div onclick="selectCategory(${c.id})" 
+                     class="flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-all duration-200 hover:bg-gray-100 dark:hover:bg-gray-700 ${c.id === selectedCatId ? 'bg-gray-100 dark:bg-gray-700' : ''}"
+                     id="cat_${c.id}">
+                    <div class="w-3 h-3 rounded" style="background: ${c.color}"></div>
+                    <span class="text-sm flex-1">${c.name}</span>
+                </div>
+            `).join('');
+        }
+
+        function selectCategory(id) {
+            selectedCatId = id;
+            document.querySelectorAll('[id^="cat_"]').forEach(el => el.classList.remove('bg-gray-100', 'dark:bg-gray-700'));
+            document.getElementById(`cat_${id}`)?.classList.add('bg-gray-100', 'dark:bg-gray-700');
+        }
+
+        function renderAnnotationList() {
+            const list = document.getElementById('annList');
+            const count = document.getElementById('annCount');
+            count.textContent = currentAnns.length;
+
+            if (currentAnns.length === 0) {
+                list.innerHTML = '<div class="text-sm text-gray-500 dark:text-gray-400 text-center py-4">No annotations yet</div>';
+                return;
+            }
+
+            list.innerHTML = currentAnns.map(ann => {
+                const cat = categories.find(c => c.id === ann.category_id);
+                const color = cat?.color || '#aaa';
+                const label = cat?.name || `class_${ann.category_id}`;
+                const conf = ann.score ? ` (${(ann.score * 100).toFixed(0)}%)` : '';
+                return `
+                    <div onclick="selectAnnotation(${ann.id})" 
+                         class="flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-all duration-200 hover:bg-gray-100 dark:hover:bg-gray-700 group ${ann.id === selectedAnnId ? 'bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-800' : ''}">
+                        <div class="w-2 h-2 rounded-full" style="background: ${color}"></div>
+                        <span class="text-sm flex-1">${label}${conf}</span>
+                        <button onclick="event.stopPropagation(); deleteAnnotationById(${ann.id})" 
+                                class="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 transition-all">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function selectAnnotation(id) {
+            selectedAnnId = id;
+            renderAnnotationList();
+            redraw();
+        }
+
+        function deleteAnnotationById(id) {
+            cocoData.annotations = cocoData.annotations.filter(a => a.id !== id);
+            currentAnns = currentAnns.filter(a => a.id !== id);
+            if (selectedAnnId === id) selectedAnnId = null;
+            renderAnnotationList();
+            markAnnotatedImages();
+            redraw();
+        }
+
+        function markAnnotatedImages() {
+            images.forEach((imgData, i) => {
+                const imgEntry = cocoData?.images?.find(im => im.file_name === imgData.filename);
+                const hasAnns = imgEntry && cocoData.annotations.some(a => a.image_id === imgEntry.id);
+                const dot = document.getElementById(`imgDot_${i}`);
+                if (dot) {
+                    dot.className = `w-2 h-2 rounded-full ${hasAnns ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`;
+                }
+            });
+        }
+
+        // ==============================================================
+        // TOOL MANAGEMENT
+        // ==============================================================
+        function setTool(t) {
+            tool = t;
+            document.getElementById('toolDraw').className = t === 'draw' 
+                ? 'flex-1 px-3 py-2 text-xs font-medium rounded-lg transition-colors flex items-center justify-center gap-1 bg-primary-600 text-white'
+                : 'flex-1 px-3 py-2 text-xs font-medium rounded-lg transition-colors flex items-center justify-center gap-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600';
+            document.getElementById('toolSelect').className = t === 'select'
+                ? 'flex-1 px-3 py-2 text-xs font-medium rounded-lg transition-colors flex items-center justify-center gap-1 bg-primary-600 text-white'
+                : 'flex-1 px-3 py-2 text-xs font-medium rounded-lg transition-colors flex items-center justify-center gap-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600';
+        }
+
+        // ==============================================================
+        // SAVE & SUBMIT
+        // ==============================================================
+        async function saveAnnotations() {
+            if (!SESSION_ID || !cocoData) return;
+            showOverlay();
+            try {
+                const res = await apiFetch(`/session/${SESSION_ID}/save-annotations`, {
+                    method: 'POST',
+                    body: JSON.stringify(cocoData),
+                });
+                const data = await res.json();
+                if (data.status === 'success') {
+                    showToast(`Saved ${data.annotation_count} annotations`, 'success');
+                } else {
+                    showToast(data.message || 'Save failed', 'error');
+                }
+            } catch (e) {
+                showToast('Save failed: ' + e.message, 'error');
+            } finally {
+                hideOverlay();
+            }
+        }
+
+        async function submitForReview() {
+            if (!SESSION_ID) return;
+            if (!confirm('Save and submit this session for reviewer approval?')) return;
+            showOverlay();
+            try {
+                await saveAnnotations();
+                const res = await apiFetch(`/session/${SESSION_ID}/submit-for-review`, { method: 'POST' });
+                const data = await res.json();
+                if (data.status === 'success') {
+                    showToast('Submitted for review! 🎉', 'success');
+                } else {
+                    showToast(data.message || 'Submit failed', 'error');
+                }
+            } catch (e) {
+                showToast('Submit failed: ' + e.message, 'error');
+            } finally {
+                hideOverlay();
+            }
+        }
+
+        function goHome() {
+            window.location.href = 'index.html';
+        }
+
+        // ==============================================================
+        // KEYBOARD SHORTCUTS
+        // ==============================================================
+        document.addEventListener('keydown', e => {
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+            if (e.key === 'd' || e.key === 'D') setTool('draw');
+            if (e.key === 's' || e.key === 'S') setTool('select');
+            if (e.key === 'Delete' || e.key === 'Backspace') deleteSelected();
+            if (e.key === 'ArrowRight') navigateImage(1);
+            if (e.key === 'ArrowLeft') navigateImage(-1);
+            if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); saveAnnotations(); }
+        });
+
+        // ==============================================================
+        // UI UTILITIES
+        // ==============================================================
+        function showToast(msg, type = '') {
+            const el = document.getElementById('toast');
+            el.textContent = msg;
+            el.className = `fixed bottom-4 left-1/2 -translate-x-1/2 px-4 py-2 text-sm rounded-lg shadow-lg transition-all duration-300 z-50 ${
+                type === 'error' 
+                    ? 'bg-red-600 text-white' 
+                    : type === 'success'
+                    ? 'bg-green-600 text-white'
+                    : 'bg-gray-900 dark:bg-gray-700 text-white'
+            } opacity-100 translate-y-0`;
+            clearTimeout(el._timer);
+            el._timer = setTimeout(() => {
+                el.className = 'fixed bottom-4 left-1/2 -translate-x-1/2 px-4 py-2 text-sm rounded-lg shadow-lg transition-all duration-300 z-50 opacity-0 translate-y-2';
+            }, 3000);
+        }
+
+        function showOverlay() { document.getElementById('overlay').style.display = 'flex'; }
+        function hideOverlay() { document.getElementById('overlay').style.display = 'none'; }
+
+        // ==============================================================
+        // START
+        // ==============================================================
+        init();
+    </script>
+</body>
+</html>
