@@ -122,7 +122,7 @@
                 <div class="text-6xl mb-4">🖼️</div>
                 <p class="text-sm">Select an image to start annotating</p>
             </div>
-            <canvas id="canvas" class="hidden absolute inset-0 w-full h-full object-contain"></canvas>
+            <canvas id="canvas" class="hidden" style="display:none; cursor:crosshair; max-width:100%; max-height:100%;"></canvas>
             
             <!-- Navigation Arrows -->
             <button id="navPrev" onclick="navigateImage(-1)" 
@@ -305,13 +305,13 @@
                 return;
             }
 
-            container.innerHTML = images.map((img, i) => `
+            container.innerHTML = images.map((im, i) => `
                 <div onclick="selectImage(${i})" 
-                     class="flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-all duration-200 hover:bg-gray-100 dark:hover:bg-gray-700 group ${i === currentIdx ? 'bg-primary-50 dark:bg-primary-900/20' : ''}"
+                     class="flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-all duration-200 hover:bg-gray-100 dark:hover:bg-gray-700 group"
                      id="imgItem_${i}">
-                    <div class="w-2 h-2 rounded-full ${i === currentIdx ? 'bg-primary-500' : 'bg-gray-300 dark:bg-gray-600'}" id="imgDot_${i}"></div>
-                    <span class="text-sm truncate flex-1 ${i === currentIdx ? 'font-medium text-primary-600 dark:text-primary-400' : 'text-gray-700 dark:text-gray-300'}">${img.filename}</span>
-                    <span class="text-xs text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity">${i + 1}</span>
+                    <div class="w-2 h-2 rounded-full bg-gray-300 dark:bg-gray-600 flex-shrink-0" id="imgDot_${i}"></div>
+                    <span class="text-sm truncate flex-1 text-gray-700 dark:text-gray-300">${im.filename}</span>
+                    <span class="text-xs text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">${i + 1}</span>
                 </div>
             `).join('');
         }
@@ -354,15 +354,17 @@
         // ==============================================================
         function selectImage(idx) {
             currentIdx = idx;
-            document.querySelectorAll('[id^="imgItem_"]').forEach((el, i) => {
+
+            // Update sidebar item styling
+            images.forEach((_, i) => {
+                const el = document.getElementById(`imgItem_${i}`);
+                if (!el) return;
                 if (i === idx) {
                     el.classList.add('bg-primary-50', 'dark:bg-primary-900/20');
-                    el.querySelector('span:first-of-type')?.classList.add('text-primary-600', 'dark:text-primary-400', 'font-medium');
-                    el.querySelector('span:first-of-type')?.classList.remove('text-gray-700', 'dark:text-gray-300');
+                    el.classList.remove('hover:bg-gray-100', 'dark:hover:bg-gray-700');
                 } else {
                     el.classList.remove('bg-primary-50', 'dark:bg-primary-900/20');
-                    el.querySelector('span:first-of-type')?.classList.remove('text-primary-600', 'dark:text-primary-400', 'font-medium');
-                    el.querySelector('span:first-of-type')?.classList.add('text-gray-700', 'dark:text-gray-300');
+                    el.classList.add('hover:bg-gray-100', 'dark:hover:bg-gray-700');
                 }
             });
 
@@ -379,28 +381,43 @@
 
         async function loadImageToCanvas(imgData) {
             document.getElementById('canvasPlaceholder').style.display = 'none';
-            canvas.style.display = 'block';
+            canvas.style.display = 'none'; // hide until loaded
+            showOverlay();
+
+            // Revoke previous blob URL to avoid memory leaks
+            if (img && img._blobUrl) {
+                URL.revokeObjectURL(img._blobUrl);
+            }
 
             try {
                 const res = await fetch(`${API}${imgData.url}`, { headers: { 'X-Auth-Token': TOKEN } });
+                if (!res.ok) { showToast(`Image load failed: ${res.status}`, 'error'); hideOverlay(); return; }
+
                 const blob = await res.blob();
-                const url = URL.createObjectURL(blob);
-                
+                const blobUrl = URL.createObjectURL(blob);
+
                 img = new Image();
+                img._blobUrl = blobUrl;
+
                 img.onload = () => {
-                    const area = document.getElementById('canvasArea') || canvas.parentElement;
+                    const area = canvas.parentElement;
                     const aW = area.clientWidth - 80;
                     const aH = area.clientHeight - 40;
 
-                    scale = Math.min(aW / img.width, aH / img.height, 1);
-                    canvas.width = Math.round(img.width * scale);
-                    canvas.height = Math.round(img.height * scale);
+                    scale = Math.min(aW / img.naturalWidth, aH / img.naturalHeight, 1);
+                    canvas.width  = Math.round(img.naturalWidth  * scale);
+                    canvas.height = Math.round(img.naturalHeight * scale);
 
+                    canvas.style.display = 'block';
                     redraw();
+                    hideOverlay();
                 };
-                img.src = url;
+
+                img.onerror = () => { showToast('Image render failed', 'error'); hideOverlay(); };
+                img.src = blobUrl; // set ONCE — triggers onload on the correct image
             } catch (e) {
-                showToast('Failed to load image', 'error');
+                showToast('Failed to load image: ' + e.message, 'error');
+                hideOverlay();
             }
         }
 
@@ -479,9 +496,12 @@
 
         function getImgCoords(e) {
             const rect = canvas.getBoundingClientRect();
+            // canvas pixel size may differ from display size if devicePixelRatio != 1
+            const scaleX = canvas.width  / rect.width;
+            const scaleY = canvas.height / rect.height;
             return {
-                x: (e.clientX - rect.left) / scale,
-                y: (e.clientY - rect.top) / scale,
+                x: (e.clientX - rect.left) * scaleX / scale,
+                y: (e.clientY - rect.top)  * scaleY / scale,
             };
         }
 
@@ -664,7 +684,7 @@
                 const hasAnns = imgEntry && cocoData.annotations.some(a => a.image_id === imgEntry.id);
                 const dot = document.getElementById(`imgDot_${i}`);
                 if (dot) {
-                    dot.className = `w-2 h-2 rounded-full ${hasAnns ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`;
+                    dot.className = `w-2 h-2 rounded-full flex-shrink-0 ${hasAnns ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`;
                 }
             });
         }
@@ -674,6 +694,7 @@
         // ==============================================================
         function setTool(t) {
             tool = t;
+            canvas.style.cursor = t === 'select' ? 'default' : 'crosshair';
             document.getElementById('toolDraw').className = t === 'draw' 
                 ? 'flex-1 px-3 py-2 text-xs font-medium rounded-lg transition-colors flex items-center justify-center gap-1 bg-primary-600 text-white'
                 : 'flex-1 px-3 py-2 text-xs font-medium rounded-lg transition-colors flex items-center justify-center gap-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600';
@@ -763,8 +784,16 @@
             }, 3000);
         }
 
-        function showOverlay() { document.getElementById('overlay').style.display = 'flex'; }
-        function hideOverlay() { document.getElementById('overlay').style.display = 'none'; }
+        function showOverlay() { 
+            const el = document.getElementById('overlay');
+            el.style.display = 'flex';
+            el.classList.remove('hidden');
+        }
+        function hideOverlay() { 
+            const el = document.getElementById('overlay');
+            el.style.display = 'none';
+            el.classList.add('hidden');
+        }
 
         // ==============================================================
         // START
