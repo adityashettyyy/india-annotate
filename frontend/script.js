@@ -849,8 +849,11 @@ window.fetch = function(url, opts = {}) {
 
 // Redirect to annotator from session panel
 function openAnnotator() {
-  if (!currentSessionId) { showError('No active session'); return; }
-  window.location.href = `annotator.html?session=${currentSessionId}`;
+  // Re-read from localStorage in case the variable wasn't set at click time
+  const sid = currentSessionId || localStorage.getItem('indiaAnnotate_sessionId');
+  if (!sid) { showError('No active session — please upload a dataset first'); return; }
+  currentSessionId = sid;
+  window.location.href = 'annotator.html?session=' + sid;
 }
 
 // Logout
@@ -864,14 +867,32 @@ function logout() {
 
 // Redirect to login if not authenticated (on page load)
 (function checkAuth() {
-  const token = localStorage.getItem('ia_token');
-  if (!token && window.location.pathname !== '/auth.html') {
-    window.location.href = 'auth.html';
-  }
+  const token    = localStorage.getItem('ia_token');
   const username = localStorage.getItem('ia_username');
   const role     = localStorage.getItem('ia_role');
+
+  // Only redirect if no token AND not already on auth.html
+  const onAuthPage = window.location.href.includes('auth.html');
+  if (!token && !onAuthPage) {
+    window.location.href = 'auth.html';
+    return;
+  }
+
+  // Show username in header
   if (username) {
     const el = document.getElementById('headerUser');
-    if (el) el.textContent = `👤 ${username}`;
+    if (el) el.textContent = '👤 ' + username + ' (' + (role || 'user') + ')';
+  }
+
+  // Show Reviewer Dashboard link for reviewer/admin
+  if (role === 'reviewer' || role === 'admin') {
+    const btn = document.getElementById('reviewerNavBtn');
+    if (btn) btn.classList.remove('hidden');
+  }
+
+  // Show Open Annotator button if a session already exists
+  if (localStorage.getItem('indiaAnnotate_sessionId')) {
+    const btn = document.getElementById('annotateNavBtn');
+    if (btn) btn.classList.remove('hidden');
   }
 })();
