@@ -15,6 +15,7 @@ env/
 backend/models/*.pt
 backend/models/*.pth
 backend/models/*.onnx
+backend/uploads/
 
 # YOLO Cache / Temp
 **/runs/
